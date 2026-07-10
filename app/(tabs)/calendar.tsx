@@ -55,8 +55,9 @@ export default function CalendarScreen() {
   const [mode, setMode] = useState<'month' | 'year'>('month');
   // The month the month-list should open at (changed by the year view).
   const [anchor, setAnchor] = useState<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });
-  // The year currently visible while scrolling months (for the top bar).
+  // What's currently visible while scrolling months (top bar + zoom target).
   const [visibleYear, setVisibleYear] = useState(now.getFullYear());
+  const visibleMonthRef = useRef<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });
 
   const byDay = useMemo(() => tasksByDay(tasks ?? []), [tasks]);
 
@@ -79,24 +80,40 @@ export default function CalendarScreen() {
   const anchorIndex = monthItems.findIndex((m) => m.year === anchor.year && m.month === anchor.month);
 
   // Month ↔ year cross-zoom (developer request): the outgoing view scales
-  // toward/away from the viewer and fades, then the incoming view arrives
-  // from the opposite scale. Year→month = zooming IN (year grows past you);
-  // month→year = zooming OUT (month shrinks away).
+  // toward/away from the viewer and fades, the incoming view arrives from
+  // the opposite scale — both ANCHORED on the specific month (the tapped
+  // block going in; the month's spot in the year grid going out), so the
+  // zoom visibly targets that month rather than the screen center.
   const viewScale = useSharedValue(1);
   const viewOpacity = useSharedValue(1);
+  const originX = useSharedValue(-1); // -1 = center
+  const originY = useSharedValue(-1);
   const zoomStyle = useAnimatedStyle(() => ({
     opacity: viewOpacity.value,
+    transformOrigin:
+      originX.value < 0 ? '50% 50% 0' : `${originX.value}px ${originY.value}px 0`,
     transform: [{ scale: viewScale.value }],
   }));
 
   // The pending switch lives in a ref: runOnJS can only marshal plain data
   // across the UI-thread boundary — a callback passed as an argument arrives
-  // as a dead object ("apply is not a function").
+  // as a dead object ("apply is not a function"). The incoming animation is
+  // NOT started here: it waits for the new view's first layout (see
+  // onIncomingLayout), otherwise the OLD view flashes back for the frames
+  // React needs to mount the new list.
   const pendingSwitch = useRef<{ next: 'month' | 'year'; inScale: number; apply?: () => void } | null>(null);
+  const awaitingIncomingLayout = useRef(false);
 
-  function switchMode(next: 'month' | 'year', zoom: 'in' | 'out', apply?: () => void) {
+  function switchMode(
+    next: 'month' | 'year',
+    zoom: 'in' | 'out',
+    origin: { x: number; y: number } | null,
+    apply?: () => void
+  ) {
     const outScale = zoom === 'in' ? 1.4 : 0.7;
     pendingSwitch.current = { next, inScale: zoom === 'in' ? 0.7 : 1.4, apply };
+    originX.value = origin?.x ?? -1;
+    originY.value = origin?.y ?? -1;
     viewOpacity.value = withTiming(0, { duration: 150, easing: Easing.in(Easing.cubic) });
     viewScale.value = withTiming(outScale, { duration: 150, easing: Easing.in(Easing.cubic) }, (finished) => {
       if (finished) runOnJS(finishSwitch)();
@@ -108,15 +125,42 @@ export default function CalendarScreen() {
     pendingSwitch.current = null;
     if (!pending) return;
     pending.apply?.();
-    setMode(pending.next);
+    // Park the incoming view at its starting scale, still invisible; the
+    // fade/zoom-in starts when it has actually laid out.
     viewScale.value = pending.inScale;
+    viewOpacity.value = 0;
+    awaitingIncomingLayout.current = true;
+    setMode(pending.next);
+  }
+
+  function onIncomingLayout() {
+    if (!awaitingIncomingLayout.current) return;
+    awaitingIncomingLayout.current = false;
     viewScale.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
     viewOpacity.value = withTiming(1, { duration: 200 });
   }
 
+  // Where the zoom container starts vertically (below the safe area + top
+  // bar) — page touch coordinates get converted into container coordinates.
+  const CONTAINER_TOP = insets.top + 38;
+
+  /** Estimated center of month `m`'s block in the year grid (the target
+   *  year sits at the top of the list after the switch). */
+  function yearBlockCenter(m: number): { x: number; y: number } {
+    const col = m % 3;
+    const row = Math.floor(m / 3);
+    const gridWidth = 360; // close enough across phones; precision not critical
+    const x = 16 + (col + 0.5) * (gridWidth / 3);
+    const y = YEAR_TITLE_HEIGHT + row * (YEAR_BLOCK_HEIGHT + YEAR_GRID_GAP) + YEAR_BLOCK_HEIGHT / 2;
+    return { x, y };
+  }
+
   const onViewableMonthsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0]?.item as MonthItem | undefined;
-    if (first) setVisibleYear(first.year);
+    if (first) {
+      setVisibleYear(first.year);
+      visibleMonthRef.current = first;
+    }
   });
 
   function statusDotColor(task: Task): string {
@@ -138,7 +182,17 @@ export default function CalendarScreen() {
     return (
       <Pressable
         key={key}
-        onPress={() => router.push({ pathname: '/day/[date]', params: { date: key } })}
+        onPress={(event) =>
+          router.push({
+            pathname: '/day/[date]',
+            params: {
+              date: key,
+              // Touch position anchors the day page's zoom-in.
+              ax: String(Math.round(event.nativeEvent.pageX)),
+              ay: String(Math.round(event.nativeEvent.pageY)),
+            },
+          })
+        }
         accessibilityRole="button"
         accessibilityLabel={`${date.toDateString()}, ${dayTasks.length} tasks`}
         style={[
@@ -234,12 +288,17 @@ export default function CalendarScreen() {
             return (
               <Pressable
                 key={name}
-                onPress={() =>
-                  switchMode('month', 'in', () => {
+                onPress={(event) => {
+                  const origin = {
+                    x: event.nativeEvent.pageX,
+                    y: event.nativeEvent.pageY - CONTAINER_TOP,
+                  };
+                  switchMode('month', 'in', origin, () => {
                     setAnchor({ year, month: m });
                     setVisibleYear(year);
-                  })
-                }
+                    visibleMonthRef.current = { year, month: m };
+                  });
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`${name} ${year}, ${count} tasks`}
                 style={[
@@ -273,11 +332,12 @@ export default function CalendarScreen() {
       <View style={[styles.topBar, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
         {mode === 'month' ? (
           <Pressable
-            onPress={() =>
-              switchMode('year', 'out', () => {
-                setAnchor({ year: visibleYear, month: now.getMonth() });
-              })
-            }
+            onPress={() => {
+              const visible = visibleMonthRef.current;
+              switchMode('year', 'out', yearBlockCenter(visible.month), () => {
+                setAnchor(visible);
+              });
+            }}
             accessibilityRole="button"
             accessibilityLabel="Show year view"
             style={styles.yearButton}>
@@ -304,6 +364,7 @@ export default function CalendarScreen() {
           initialScrollIndex={Math.max(0, anchorIndex)}
           onViewableItemsChanged={onViewableMonthsChanged.current}
           viewabilityConfig={{ itemVisiblePercentThreshold: 40 }}
+          onLayout={onIncomingLayout}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
         />
@@ -318,6 +379,7 @@ export default function CalendarScreen() {
             index,
           })}
           initialScrollIndex={years.indexOf(visibleYear) >= 0 ? years.indexOf(visibleYear) : YEARS_BACK}
+          onLayout={onIncomingLayout}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
         />

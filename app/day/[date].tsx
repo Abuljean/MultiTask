@@ -20,12 +20,18 @@ import { useTheme } from '@/lib/theme/use-theme';
 export default function DayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { date } = useLocalSearchParams<{ date: string }>();
+  const { date, ax, ay } = useLocalSearchParams<{ date: string; ax?: string; ay?: string }>();
   const { colors, space, type } = useTheme();
   const { data: tasks } = useTasks();
   const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
 
   const day = useMemo(() => parseDateKey(date ?? localDateKey(new Date())), [date]);
+
+  // Zoom anchor: the tapped day cell's screen position (the route fills the
+  // whole window, so page coordinates are container coordinates).
+  const anchorX = Number(ax);
+  const anchorY = Number(ay);
+  const hasAnchor = Number.isFinite(anchorX) && Number.isFinite(anchorY);
 
   const dayTasks = useMemo(
     () =>
@@ -35,17 +41,21 @@ export default function DayScreen() {
     [tasks, date]
   );
 
-  // Zoom in on entry, zoom back out on exit.
-  const scale = useSharedValue(0.85);
+  // Zoom in on entry, zoom back out on exit — anchored on the tapped cell,
+  // so the page visibly grows out of (and shrinks back into) that day.
+  const START_SCALE = hasAnchor ? 0.5 : 0.85;
+  const scale = useSharedValue(START_SCALE);
   const opacity = useSharedValue(0);
 
   useEffect(() => {
-    scale.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
+    scale.value = withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) });
     opacity.value = withTiming(1, { duration: 220 });
-  }, [scale, opacity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const zoomStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
+    transformOrigin: hasAnchor ? `${anchorX}px ${anchorY}px 0` : '50% 50% 0',
     transform: [{ scale: scale.value }],
   }));
 
@@ -54,7 +64,7 @@ export default function DayScreen() {
   }
 
   function close() {
-    scale.value = withTiming(0.85, { duration: 200, easing: Easing.in(Easing.cubic) });
+    scale.value = withTiming(START_SCALE, { duration: 220, easing: Easing.in(Easing.cubic) });
     opacity.value = withTiming(0, { duration: 200 }, (finished) => {
       if (finished) runOnJS(goBack)();
     });

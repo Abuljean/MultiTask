@@ -89,20 +89,27 @@ export default function CalendarScreen() {
     transform: [{ scale: viewScale.value }],
   }));
 
+  // The pending switch lives in a ref: runOnJS can only marshal plain data
+  // across the UI-thread boundary — a callback passed as an argument arrives
+  // as a dead object ("apply is not a function").
+  const pendingSwitch = useRef<{ next: 'month' | 'year'; inScale: number; apply?: () => void } | null>(null);
+
   function switchMode(next: 'month' | 'year', zoom: 'in' | 'out', apply?: () => void) {
     const outScale = zoom === 'in' ? 1.4 : 0.7;
-    const inScale = zoom === 'in' ? 0.7 : 1.4;
+    pendingSwitch.current = { next, inScale: zoom === 'in' ? 0.7 : 1.4, apply };
     viewOpacity.value = withTiming(0, { duration: 150, easing: Easing.in(Easing.cubic) });
     viewScale.value = withTiming(outScale, { duration: 150, easing: Easing.in(Easing.cubic) }, (finished) => {
-      if (!finished) return;
-      runOnJS(finishSwitch)(next, inScale, apply);
+      if (finished) runOnJS(finishSwitch)();
     });
   }
 
-  function finishSwitch(next: 'month' | 'year', inScale: number, apply?: () => void) {
-    apply?.();
-    setMode(next);
-    viewScale.value = inScale;
+  function finishSwitch() {
+    const pending = pendingSwitch.current;
+    pendingSwitch.current = null;
+    if (!pending) return;
+    pending.apply?.();
+    setMode(pending.next);
+    viewScale.value = pending.inScale;
     viewScale.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
     viewOpacity.value = withTiming(1, { duration: 200 });
   }

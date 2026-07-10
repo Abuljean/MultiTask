@@ -11,7 +11,6 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
@@ -47,6 +46,22 @@ export default function QuickAddScreen() {
 
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState<Date>(nextRoundQuarterHour);
+
+  // The sheet stays anchored to the SCREEN bottom and pads itself by the
+  // keyboard height, so its surface extends down behind the keyboard — no
+  // backdrop gap under the box (developer feedback). KeyboardAvoidingView
+  // (which lifts the whole sheet, leaving that gap) was removed.
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   // `picker` = which chip is logically active; `renderedPicker` keeps the
   // content mounted while the close animation runs.
   const [picker, setPickerRaw] = useState<'date' | 'time' | null>(null);
@@ -160,23 +175,20 @@ export default function QuickAddScreen() {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}>
-        {/* Tap outside to cancel. */}
-        <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close quick add" />
-        <Animated.View
-          style={[
-            styles.sheet,
-            sheetStyle,
-            {
-              backgroundColor: colors.surfaceElevated,
-              borderTopLeftRadius: radius.card,
-              borderTopRightRadius: radius.card,
-              padding: space.s4,
-              paddingBottom: Math.max(insets.bottom, space.s4),
-            },
-          ]}>
+      {/* Tap outside to cancel. */}
+      <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close quick add" />
+      <Animated.View
+        style={[
+          styles.sheet,
+          sheetStyle,
+          {
+            backgroundColor: colors.surfaceElevated,
+            borderTopLeftRadius: radius.card,
+            borderTopRightRadius: radius.card,
+            padding: space.s4,
+            paddingBottom: keyboardHeight > 0 ? keyboardHeight + space.s3 : Math.max(insets.bottom, space.s4),
+          },
+        ]}>
           <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
 
           <TextInput
@@ -265,7 +277,6 @@ export default function QuickAddScreen() {
             <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>Add task</Text>
           </Pressable>
         </Animated.View>
-      </KeyboardAvoidingView>
     </View>
   );
 }

@@ -4,18 +4,24 @@
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { animateListChanges } from '@/lib/animate-layout';
-import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
+import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import { groupTasks, type SectionKey } from '@/lib/tasks/sections';
-import { useTasks } from '@/lib/tasks/use-tasks';
+import {
+  useBulkPermanentlyDeleteTasks,
+  useBulkRestoreTasks,
+  useBulkSoftDeleteTasks,
+  useTasks,
+} from '@/lib/tasks/use-tasks';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TaskListScreen() {
@@ -24,6 +30,10 @@ export default function TaskListScreen() {
   const { colors, space, type } = useTheme();
   const { data: tasks, isLoading, error, refetch } = useTasks();
   const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
+  const bulkSoftDelete = useBulkSoftDeleteTasks();
+  const bulkRestore = useBulkRestoreTasks();
+  const bulkPermanentDelete = useBulkPermanentlyDeleteTasks();
+  const toast = useUndoToast();
   const [completedCollapsed, toggleCompleted] = useCollapsedSection('ui.completedCollapsed');
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
 
@@ -54,30 +64,86 @@ export default function TaskListScreen() {
   );
   const deletedCount = useMemo(() => (tasks ?? []).filter((t) => t.deletedAt).length, [tasks]);
 
+  // "Clear all completed" — the fix for the web app's most annoying bug.
+  // One sweep into the trash, one undo toast for the whole batch, and the
+  // section NEVER collapses on you mid-clear.
+  function clearAllCompleted() {
+    const ids = (tasks ?? []).filter((t) => t.isCompleted && !t.deletedAt).map((t) => t.id);
+    if (ids.length === 0) return;
+    animateListChanges();
+    ids.forEach((id) => markEnter(id, 'left'));
+    bulkSoftDelete.mutate(ids, {
+      onError: () => toast.show({ message: 'Couldn’t clear completed — check your connection.' }),
+    });
+    toast.show({
+      message: `${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} deleted.`,
+      onUndo: () => {
+        animateListChanges();
+        ids.forEach((id) => markEnter(id, 'right'));
+        bulkRestore.mutate(ids, {
+          onError: () => toast.show({ message: 'Couldn’t restore — check your connection.' }),
+        });
+      },
+    });
+  }
+
+  // Emptying the trash is bulk-permanent — the one action with no undo, so
+  // it's also the one action that earns a confirmation dialog.
+  function emptyTrash() {
+    const ids = (tasks ?? []).filter((t) => t.deletedAt).map((t) => t.id);
+    if (ids.length === 0) return;
+    Alert.alert('Empty trash?', `${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} will be gone permanently.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Empty',
+        style: 'destructive',
+        onPress: () => {
+          animateListChanges();
+          bulkPermanentDelete.mutate(ids, {
+            onError: () => toast.show({ message: 'Couldn’t empty the trash — check your connection.' }),
+          });
+          toast.show({ message: 'Trash emptied.' });
+        },
+      },
+    ]);
+  }
+
   function renderCollapsibleHeader(key: SectionKey) {
     const isCompleted = key === 'completed';
     const collapsed = isCompleted ? completedCollapsed : deletedCollapsed;
     const toggle = isCompleted ? toggleCompleted : toggleDeleted;
-    const label = isCompleted ? `Completed (${completedCount})` : `Deleted (${deletedCount})`;
+    const count = isCompleted ? completedCount : deletedCount;
+    const label = isCompleted ? `Completed (${count})` : `Deleted (${count})`;
     return (
-      <Text
-        onPress={() => {
-          animateListChanges();
-          toggle();
-        }}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: !collapsed }}
+      <View
         style={[
-          type.h2,
-          { color: colors.textSecondary, backgroundColor: colors.surface, paddingVertical: space.s2 },
+          styles.sectionHeaderRow,
+          { backgroundColor: colors.surface, paddingVertical: space.s2 },
         ]}>
-        {`${label}  `}
-        <IconSymbol
-          name={collapsed ? 'chevron.right' : 'chevron.down'}
-          size={14}
-          color={colors.textSecondary}
-        />
-      </Text>
+        <Text
+          onPress={() => {
+            animateListChanges();
+            toggle();
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: !collapsed }}
+          style={[type.h2, styles.sectionHeaderLabel, { color: colors.textSecondary }]}>
+          {`${label}  `}
+          <IconSymbol
+            name={collapsed ? 'chevron.right' : 'chevron.down'}
+            size={14}
+            color={colors.textSecondary}
+          />
+        </Text>
+        {count > 0 && (
+          <Text
+            onPress={isCompleted ? clearAllCompleted : emptyTrash}
+            accessibilityRole="button"
+            style={[type.caption, { color: colors.accent, paddingVertical: space.s1 }]}>
+            {isCompleted ? 'Clear all' : 'Empty trash'}
+          </Text>
+        )}
+      </View>
     );
   }
 
@@ -144,4 +210,12 @@ export default function TaskListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeaderLabel: {
+    flexShrink: 1,
+  },
 });

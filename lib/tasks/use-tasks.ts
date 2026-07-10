@@ -182,6 +182,59 @@ export function useRestoreTask() {
   });
 }
 
+/** Bulk soft delete — "Clear all completed". One optimistic sweep, one
+ *  server round-trip, and the undo toast restores the whole batch. */
+export function useBulkSoftDeleteTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      const { error } = await supabase
+        .from('task')
+        .update({ deleted_at: new Date().toISOString() })
+        .in('task_id', ids);
+      if (error) throw error;
+    },
+    onMutate: (ids) =>
+      applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) => (ids.includes(t.id) ? { ...t, deletedAt: new Date() } : t))
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** Undo for the bulk clear: flips the whole batch back. */
+export function useBulkRestoreTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      const { error } = await supabase.from('task').update({ deleted_at: null }).in('task_id', ids);
+      if (error) throw error;
+    },
+    onMutate: (ids) =>
+      applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) => (ids.includes(t.id) ? { ...t, deletedAt: null } : t))
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** Empty the trash — bulk permanent DELETE. Irreversible, so the caller
+ *  confirms first (the one place a confirmation dialog is justified). */
+export function useBulkPermanentlyDeleteTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: number[]) => {
+      const { error } = await supabase.from('task').delete().in('task_id', ids);
+      if (error) throw error;
+    },
+    onMutate: (ids) => applyOptimistic(queryClient, (tasks) => tasks.filter((t) => !ids.includes(t.id))),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
 /** The real DELETE — only reachable from the Deleted section. Irreversible. */
 export function usePermanentlyDeleteTask() {
   const queryClient = useQueryClient();

@@ -40,13 +40,11 @@ const TRAIL_REVEAL_PX = 4;
 // Used for the snap-back when a swipe is released below the threshold.
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
 
-// Entrance spring (developer pick): the bounce swings past the resting
-// point by the same distance as a sub-threshold pull — i.e. up to the
-// 16.18% swipe-threshold line. Travel is 60% of screen width, so the
-// overshoot fraction is 0.1618 / 0.6 ≈ 27%. Overshoot = exp(-πζ/√(1-ζ²))
-// ⇒ damping ratio ζ ≈ 0.385; with mass 1: damping = 2ζ√stiffness ≈ 8.5 at
-// stiffness 120. (Re-derive if THRESHOLD_FRACTION or the travel changes.)
-const ENTER_SPRING = { damping: 8.5, stiffness: 120 };
+// Entrance spring (developer pick, final): the bounce overshoots the
+// resting point by 16.18% of the travel distance (golden ratio of the
+// 60%-width slide-in). Overshoot = exp(-πζ/√(1-ζ²)) ⇒ damping ratio
+// ζ ≈ 0.50; with mass 1: damping = 2ζ√stiffness ⇒ 11 at stiffness 120.
+const ENTER_SPRING = { damping: 11, stiffness: 120 };
 
 type Props = {
   task: Task;

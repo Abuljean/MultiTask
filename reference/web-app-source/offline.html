@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!--
+  Place this at: src/main/resources/META-INF/resources/offline.html
+
+  Static page served by the PWA service worker when the installed app is opened with no
+  network connection. Fully self-contained (inline CSS/JS, no external resources) because
+  nothing can be fetched while offline.
+
+  This is an informational page, not a working offline version of TaskApp — Flow views
+  run server-side and can't operate offline. It auto-reloads into the real app once the
+  connection returns.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskApp — Offline</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f6f7f9;
+            color: #1f2937;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            max-width: 420px;
+            width: 100%;
+            padding: 40px 32px;
+            text-align: center;
+        }
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            background-color: #3b82f6;
+            color: #ffffff;
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+        h1 { font-size: 22px; margin-bottom: 10px; color: #111827; }
+        p { font-size: 15px; line-height: 1.55; color: #6b7280; margin-bottom: 8px; }
+        .hint { font-size: 13px; color: #9ca3af; margin-top: 18px; }
+        button {
+            margin-top: 24px;
+            padding: 12px 24px;
+            background-color: #3b82f6;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { background-color: #2563eb; }
+        .status { margin-top: 16px; font-size: 13px; font-weight: 500; }
+        .status.offline { color: #dc2626; }
+        .status.online { color: #16a34a; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">T</div>
+        <h1>You're offline</h1>
+        <p>TaskApp needs an internet connection to load your tasks and save changes.</p>
+        <p>Your data is safe on the server — it'll be here when you reconnect.</p>
+
+        <div id="status" class="status offline">No connection</div>
+
+        <button onclick="window.location.reload()">Try again</button>
+
+        <p class="hint">This page will reload automatically when your connection returns.</p>
+    </div>
+
+    <script>
+        // Reflect live connection state, and auto-reload the moment the network returns
+        // so the user is dropped straight back into the real app without tapping anything.
+        const statusEl = document.getElementById('status');
+
+        function updateStatus() {
+            if (navigator.onLine) {
+                statusEl.textContent = 'Connection restored — reloading…';
+                statusEl.className = 'status online';
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                statusEl.textContent = 'No connection';
+                statusEl.className = 'status offline';
+            }
+        }
+
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        updateStatus();
+    </script>
+</body>
+</html>

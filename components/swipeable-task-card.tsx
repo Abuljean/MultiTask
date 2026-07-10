@@ -28,7 +28,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Task } from '@/lib/tasks/types';
 import { useTheme } from '@/lib/theme/use-theme';
 
-const THRESHOLD_FRACTION = 0.25;
+// Golden-ratio threshold (developer's pick): 16.18% of screen width.
+const THRESHOLD_FRACTION = 0.1618;
 
 // The trail only reveals once the card has actually moved — a resting or
 // barely-wiggled card must never flash the action colors behind it.
@@ -39,9 +40,10 @@ const TRAIL_REVEAL_PX = 4;
 // Used for the snap-back when a swipe is released below the threshold.
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
 
-// Entrance spring: slower arrival with a soft, visible settle (developer
-// wants to compare this against the bounceless timing version).
-const ENTER_SPRING = { damping: 18, stiffness: 130 };
+// Entrance: slow glide, pure deceleration, zero recoil — the spring versions
+// overshot the resting point and visibly swung back, which read as the card
+// "coming back out" (developer feedback, 2026-07-10).
+const ENTER_DURATION_MS = 380;
 
 type Props = {
   task: Task;
@@ -78,7 +80,7 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
   useEffect(() => {
     if (enterFrom) {
       translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
-      translateX.value = withSpring(0, ENTER_SPRING);
+      translateX.value = withTiming(0, { duration: ENTER_DURATION_MS, easing: Easing.out(Easing.cubic) });
       onEntered?.(task.id);
     }
   }, [enterFrom, task.id, screenWidth, translateX, onEntered]);

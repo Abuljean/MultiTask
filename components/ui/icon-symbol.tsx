@@ -30,6 +30,7 @@ const MAPPING = {
   calendar: 'calendar-today',
   'chevron.left': 'chevron-left',
   'gearshape.fill': 'settings',
+  magnifyingglass: 'search',
 } as IconMapping;
 
 /**

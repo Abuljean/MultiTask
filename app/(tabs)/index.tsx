@@ -4,7 +4,7 @@
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
@@ -41,10 +41,40 @@ export default function TaskListScreen() {
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
   const urgencyThresholdHours = useUrgencyThreshold();
 
-  // Search + filter (hidden above the fold; pull down a little to reveal).
+  // Search + filter. NOT rendered at all until deliberately revealed — an
+  // overscroll pull at the top, or the magnifier button (developer: keep it
+  // hidden, it's a lot of information). Auto-hides again on scroll when no
+  // criteria are active.
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
   const searching = hasActiveFilters(filters);
+
+  function showSearch() {
+    if (!searchVisible) {
+      animateListChanges();
+      setSearchVisible(true);
+    }
+  }
+
+  function hideSearch() {
+    animateListChanges();
+    setSearchVisible(false);
+    setFilterPanelOpen(false);
+    setFilters(EMPTY_FILTERS);
+  }
+
+  function onListScroll(event: { nativeEvent: { contentOffset: { y: number } } }) {
+    const y = event.nativeEvent.contentOffset.y;
+    if (!searchVisible && y < -35) {
+      // Intentional pull past the top (iOS overscroll).
+      showSearch();
+    } else if (searchVisible && !searching && !filterPanelOpen && y > 100) {
+      // Nothing active and the user is scrolling on — tuck it away.
+      animateListChanges();
+      setSearchVisible(false);
+    }
+  }
 
   const filterOptions = useMemo(() => {
     const cats = new Map<string, string>();
@@ -207,9 +237,16 @@ export default function TaskListScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-      <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
-        Tasks
-      </Text>
+      <View style={[styles.titleRow, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
+        <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
+        <Pressable
+          onPress={() => (searchVisible ? hideSearch() : showSearch())}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={searchVisible ? 'Hide search' : 'Search tasks'}>
+          <IconSymbol name="magnifyingglass" size={20} color={searchVisible ? colors.accent : colors.textSecondary} />
+        </Pressable>
+      </View>
 
       {isLoading ? (
         // Skeleton per docs/design/05: grey placeholder cards, no shimmer.
@@ -231,19 +268,19 @@ export default function TaskListScreen() {
           keyExtractor={(task) => String(task.id)}
           stickySectionHeadersEnabled
           refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
-          // The search bar hides above the fold; a small pull reveals it, a
-          // bigger pull still refreshes (iOS Mail pattern). iOS-only prop —
-          // Android simply shows the bar.
-          contentOffset={{ x: 0, y: 56 }}
+          onScroll={onListScroll}
+          scrollEventThrottle={32}
           ListHeaderComponent={
-            <SearchFilterBar
-              filters={filters}
-              onChange={setFilters}
-              panelOpen={filterPanelOpen}
-              onTogglePanel={() => setFilterPanelOpen((open) => !open)}
-              categories={filterOptions.categories}
-              subjects={filterOptions.subjects}
-            />
+            searchVisible ? (
+              <SearchFilterBar
+                filters={filters}
+                onChange={setFilters}
+                panelOpen={filterPanelOpen}
+                onTogglePanel={() => setFilterPanelOpen((open) => !open)}
+                categories={filterOptions.categories}
+                subjects={filterOptions.subjects}
+              />
+            ) : null
           }
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
@@ -284,6 +321,11 @@ export default function TaskListScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',

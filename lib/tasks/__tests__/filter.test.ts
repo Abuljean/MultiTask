@@ -49,6 +49,20 @@ describe('filterTasks', () => {
     expect(overdue.map((t) => t.title)).toEqual(['Old essay']);
   });
 
+  test('priority filter matches tiers, 0 means no-priority tasks', () => {
+    const prioritized = [
+      task({ title: 'first', priority: 1 }),
+      task({ title: 'second', priority: 2 }),
+      task({ title: 'none' }),
+    ];
+    expect(
+      filterTasks(prioritized, { ...EMPTY_FILTERS, priority: 1 }, { now: NOW }).map((t) => t.title)
+    ).toEqual(['first']);
+    expect(
+      filterTasks(prioritized, { ...EMPTY_FILTERS, priority: 0 }, { now: NOW }).map((t) => t.title)
+    ).toEqual(['none']);
+  });
+
   test('filters combine with AND', () => {
     const result = filterTasks(
       tasks,

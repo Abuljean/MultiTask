@@ -8,6 +8,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { CollapsibleReveal } from '@/components/collapsible-reveal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { type TaskFilters, type UrgencyFilter } from '@/lib/tasks/filter';
+import { priorityTiers } from '@/lib/theme/tokens';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export type FilterOption = { name: string; color: string };
@@ -28,7 +29,7 @@ const URGENCY_OPTIONS: { value: UrgencyFilter; label: string }[] = [
 ];
 
 export function SearchFilterBar({ filters, onChange, panelOpen, onTogglePanel, categories, subjects }: Props) {
-  const { colors, space, radius, type } = useTheme();
+  const { colors, space, radius, type, isDark } = useTheme();
 
   const urgencyColor: Record<UrgencyFilter, string> = {
     overdue: colors.statusOverdueAccent,
@@ -117,6 +118,21 @@ export function SearchFilterBar({ filters, onChange, panelOpen, onTogglePanel, c
                   }),
                 urgencyColor[option.value]
               )
+            )}
+          </View>
+
+          {label('Priority')}
+          <View style={[styles.wrapRow, { gap: space.s2 }]}>
+            {[1, 2, 3].map((tier) =>
+              chip(
+                priorityTiers[tier].label,
+                filters.priority === tier,
+                () => onChange({ ...filters, priority: filters.priority === tier ? null : tier }),
+                isDark ? priorityTiers[tier].dark : priorityTiers[tier].light
+              )
+            )}
+            {chip('None', filters.priority === 0, () =>
+              onChange({ ...filters, priority: filters.priority === 0 ? null : 0 })
             )}
           </View>
 

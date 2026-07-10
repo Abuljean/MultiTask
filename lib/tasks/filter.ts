@@ -13,16 +13,25 @@ export type TaskFilters = {
   category: string | null;
   subject: string | null;
   urgency: UrgencyFilter | null;
+  /** 1/2/3 = that tier; 0 = tasks with NO priority; null = filter inactive. */
+  priority: number | null;
 };
 
-export const EMPTY_FILTERS: TaskFilters = { query: '', category: null, subject: null, urgency: null };
+export const EMPTY_FILTERS: TaskFilters = {
+  query: '',
+  category: null,
+  subject: null,
+  urgency: null,
+  priority: null,
+};
 
 export function hasActiveFilters(filters: TaskFilters): boolean {
   return (
     filters.query.trim().length > 0 ||
     filters.category !== null ||
     filters.subject !== null ||
-    filters.urgency !== null
+    filters.urgency !== null ||
+    filters.priority !== null
   );
 }
 
@@ -37,6 +46,11 @@ export function filterTasks(
       if (task.deletedAt) return false; // trash never appears in results
       if (filters.category && task.category !== filters.category) return false;
       if (filters.subject && task.subject !== filters.subject) return false;
+      if (filters.priority !== null) {
+        if (filters.priority === 0 ? task.priority != null : task.priority !== filters.priority) {
+          return false;
+        }
+      }
       // Urgency filtering implicitly excludes completed tasks (their status
       // is 'completed', which never equals an urgency level).
       if (filters.urgency && deriveStatus(task, options) !== filters.urgency) return false;

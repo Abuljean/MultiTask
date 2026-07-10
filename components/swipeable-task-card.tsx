@@ -40,10 +40,11 @@ const TRAIL_REVEAL_PX = 4;
 // Used for the snap-back when a swipe is released below the threshold.
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
 
-// Entrance: slow glide, pure deceleration, zero recoil — the spring versions
-// overshot the resting point and visibly swung back, which read as the card
-// "coming back out" (developer feedback, 2026-07-10).
-const ENTER_DURATION_MS = 380;
+// Entrance spring, golden-ratio bounce (developer pick): tuned to overshoot
+// the resting point by ~16.18% of the travel distance, one visible settle.
+// Overshoot fraction = exp(-πζ/√(1-ζ²)); 16.18% ⇒ damping ratio ζ ≈ 0.50,
+// and with mass 1: damping = 2ζ√stiffness ⇒ 11 at stiffness 120.
+const ENTER_SPRING = { damping: 11, stiffness: 120 };
 
 type Props = {
   task: Task;
@@ -79,10 +80,8 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
   // whenever the screen marks this task as freshly moved.
   useEffect(() => {
     if (enterFrom) {
-      // Enter over the same distance as the swipe threshold — arrival
-      // mirrors the pull that commits an action (developer preference).
-      translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * THRESHOLD_FRACTION;
-      translateX.value = withTiming(0, { duration: ENTER_DURATION_MS, easing: Easing.out(Easing.cubic) });
+      translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
+      translateX.value = withSpring(0, ENTER_SPRING);
       onEntered?.(task.id);
     }
   }, [enterFrom, task.id, screenWidth, translateX, onEntered]);

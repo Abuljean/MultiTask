@@ -79,7 +79,9 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
   // whenever the screen marks this task as freshly moved.
   useEffect(() => {
     if (enterFrom) {
-      translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
+      // Enter over the same distance as the swipe threshold — arrival
+      // mirrors the pull that commits an action (developer preference).
+      translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * THRESHOLD_FRACTION;
       translateX.value = withTiming(0, { duration: ENTER_DURATION_MS, easing: Easing.out(Easing.cubic) });
       onEntered?.(task.id);
     }

@@ -25,6 +25,7 @@ const MAPPING = {
   'exclamationmark.triangle.fill': 'warning',
   'trash.fill': 'delete',
   'chevron.down': 'keyboard-arrow-down',
+  plus: 'add',
 } as IconMapping;
 
 /**

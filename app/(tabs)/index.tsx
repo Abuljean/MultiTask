@@ -6,14 +6,17 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Fab } from '@/components/fab';
+import { QuickAddSheet } from '@/components/quick-add-sheet';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { animateListChanges } from '@/lib/animate-layout';
 import { groupTasks, type SectionKey } from '@/lib/tasks/sections';
-import type { Task } from '@/lib/tasks/types';
+import type { NewTask, Task } from '@/lib/tasks/types';
 import {
+  useCreateTask,
   useDeleteTask,
   usePermanentlyDeleteTask,
   useRestoreTask,
@@ -30,7 +33,9 @@ export default function TaskListScreen() {
   const deleteTask = useDeleteTask();
   const restoreTask = useRestoreTask();
   const permanentlyDelete = usePermanentlyDeleteTask();
+  const createTask = useCreateTask();
   const toast = useUndoToast();
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [completedCollapsed, toggleCompleted] = useCollapsedSection('ui.completedCollapsed');
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
 
@@ -130,6 +135,17 @@ export default function TaskListScreen() {
     }
   }
 
+  function handleQuickAdd(input: NewTask) {
+    createTask.mutate(input, {
+      onSuccess: (task) => {
+        // Slide the new card into its sorted spot, same as any arrival.
+        animateListChanges();
+        markEnter(task.id, 'right');
+      },
+      onError: showError('add the task'),
+    });
+  }
+
   function renderCollapsibleHeader(key: SectionKey) {
     const isCompleted = key === 'completed';
     const collapsed = isCompleted ? completedCollapsed : deletedCollapsed;
@@ -211,6 +227,9 @@ export default function TaskListScreen() {
           }
         />
       )}
+
+      <Fab bottom={insets.bottom + 24} onPress={() => setQuickAddOpen(true)} />
+      <QuickAddSheet visible={quickAddOpen} onClose={() => setQuickAddOpen(false)} onSubmit={handleQuickAdd} />
     </View>
   );
 }

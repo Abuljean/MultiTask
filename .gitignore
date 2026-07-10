@@ -35,6 +35,8 @@ yarn-error.*
 .env.*
 .env*.local
 reference/config-and-infra/_env
+# ...but the placeholder template is fine to share
+!.env.example
 
 # typescript
 *.tsbuildinfo

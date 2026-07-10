@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Pill, PriorityBadge } from '@/components/pill';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { formatDueDate } from '@/lib/tasks/dates';
 import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
@@ -25,7 +26,8 @@ type Props = {
 export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPress }: Props) {
   const theme = useTheme();
   const { colors, space, radius, type, monoFont } = theme;
-  const status = deriveStatus(task);
+  const urgencyThresholdHours = useUrgencyThreshold();
+  const status = deriveStatus(task, { urgencyThresholdHours });
   const surfaces = statusSurfaces(theme);
   const { background, accentBar } = surfaces[status];
 

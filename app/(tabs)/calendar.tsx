@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { buildMonthMatrix, localDateKey, tasksByDay } from '@/lib/tasks/calendar';
 import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
@@ -49,6 +50,7 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
   const { data: tasks } = useTasks();
+  const urgencyThresholdHours = useUrgencyThreshold();
 
   const now = new Date();
   const todayKey = localDateKey(now);
@@ -164,7 +166,7 @@ export default function CalendarScreen() {
   });
 
   function statusDotColor(task: Task): string {
-    const status = deriveStatus(task);
+    const status = deriveStatus(task, { urgencyThresholdHours });
     if (status === 'overdue') return colors.statusOverdueAccent;
     if (status === 'urgent') return colors.statusUrgentAccent;
     if (status === 'completed') return colors.textTertiary;

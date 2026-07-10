@@ -29,6 +29,7 @@ const MAPPING = {
   'sun.max.fill': 'wb-sunny',
   calendar: 'calendar-today',
   'chevron.left': 'chevron-left',
+  'gearshape.fill': 'settings',
 } as IconMapping;
 
 /**

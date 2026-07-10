@@ -81,6 +81,32 @@ export type NewTask = {
   priority?: number | null;
 };
 
+/** Every user-editable field, all explicit — the edit form always knows the
+ *  full desired state (unlike quick-add, where omissions mean DB defaults). */
+export type TaskEdits = {
+  title: string;
+  dueDate: Date | null;
+  description: string;
+  priority: number | null;
+  category: string;
+  categoryColor: string;
+  subject: string;
+  subjectColor: string;
+};
+
+export function toUpdateRow(edits: TaskEdits): Partial<TaskRow> {
+  return {
+    title: edits.title,
+    due_date: edits.dueDate ? formatWallClock(edits.dueDate) : null,
+    description: edits.description,
+    priority: edits.priority,
+    category: edits.category,
+    category_color: edits.categoryColor,
+    subject: edits.subject,
+    subject_color: edits.subjectColor,
+  };
+}
+
 export function toInsertRow(input: NewTask, userUuid: string): Partial<TaskRow> {
   return {
     user_uuid: userUuid,

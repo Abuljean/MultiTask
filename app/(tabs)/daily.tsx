@@ -4,9 +4,9 @@
 // as distinct pill-shaped check rows, and regular tasks DUE TODAY (overdue
 // included — they're today's reality) reusing the swipeable cards.
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,11 +17,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SwipeableRow } from '@/components/swipeable-row';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useTaskActions } from '@/hooks/use-task-actions';
-import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
+import { animateListChanges } from '@/lib/animate-layout';
+import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import {
   useAddRecurringTask,
   useArchiveRecurringTask,
@@ -34,6 +36,7 @@ import { useTasks } from '@/lib/tasks/use-tasks';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function DailyScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
   const toast = useUndoToast();
@@ -70,29 +73,37 @@ export default function DailyScreen() {
       .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0));
   }, [tasksQuery.data]);
 
+  // Same movement rules as regular tasks (docs/design/05 final values):
+  // swipe right = check off (or un-check when in Done), row slides off and
+  // re-enters its new group from the right; swipe left = remove (archive)
+  // with an undo toast — no confirmation dialogs when undo exists.
   function toggleDone(task: RecurringTask) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animateListChanges();
+    markEnter(`rec:${task.id}`, 'right');
     setDone.mutate(
       { id: task.id, done: !task.doneToday },
       { onError: () => toast.show({ message: 'Couldn’t update — check your connection.' }) }
     );
   }
 
-  function confirmArchive(task: RecurringTask) {
-    // Long-press affordance; archive keeps history and has undo.
-    Alert.alert('Remove daily task?', `"${task.title}" will stop appearing. Its history is kept.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          archiveRecurring.mutate(task.id, {
-            onError: () => toast.show({ message: 'Couldn’t remove — check your connection.' }),
-          });
-          toast.show({ message: 'Daily task removed.', onUndo: () => unarchiveRecurring.mutate(task) });
-        },
+  function tapToggleDone(task: RecurringTask) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleDone(task);
+  }
+
+  function removeRecurring(task: RecurringTask) {
+    animateListChanges();
+    archiveRecurring.mutate(task.id, {
+      onError: () => toast.show({ message: 'Couldn’t remove — check your connection.' }),
+    });
+    toast.show({
+      message: 'Daily task removed.',
+      onUndo: () => {
+        animateListChanges();
+        markEnter(`rec:${task.id}`, 'right');
+        unarchiveRecurring.mutate(task);
       },
-    ]);
+    });
   }
 
   function submitNew() {
@@ -108,6 +119,66 @@ export default function DailyScreen() {
   }
 
   const today = new Date();
+  const pendingRecurring = (recurring.data ?? []).filter((t) => !t.doneToday);
+  const doneRecurring = (recurring.data ?? []).filter((t) => t.doneToday);
+
+  function renderRecurringRow(task: RecurringTask) {
+    return (
+      <SwipeableRow
+        key={task.id}
+        rightAction={
+          task.doneToday
+            ? { color: colors.accent, icon: 'arrow.uturn.backward' }
+            : { color: colors.statusOngoingAccent, icon: 'checkmark' }
+        }
+        leftAction={{ color: colors.statusOverdueAccent, icon: 'trash.fill' }}
+        onSwipeRight={() => toggleDone(task)}
+        onSwipeLeft={() => removeRecurring(task)}
+        resetKey={`rec:${task.id}|${task.doneToday}`}
+        enterFrom={getEnterFrom(`rec:${task.id}`)}
+        onEntered={() => clearEnterMark(`rec:${task.id}`)}>
+        <Pressable
+          onPress={() => tapToggleDone(task)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: task.doneToday }}
+          accessibilityLabel={task.title}
+          accessibilityActions={[{ name: 'delete', label: 'Remove daily task' }]}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'delete') removeRecurring(task);
+          }}
+          style={[
+            styles.recurringRow,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.borderSubtle,
+              paddingHorizontal: space.s4,
+              gap: space.s3,
+            },
+          ]}>
+          <View
+            style={[
+              styles.checkCircle,
+              {
+                borderColor: task.doneToday ? colors.accent : colors.textTertiary,
+                backgroundColor: task.doneToday ? colors.accent : 'transparent',
+              },
+            ]}>
+            {task.doneToday && <IconSymbol name="checkmark" size={14} color={colors.textOnAccent} />}
+          </View>
+          <Text
+            style={[
+              type.body,
+              styles.recurringTitle,
+              { color: colors.textPrimary, opacity: task.doneToday ? 0.55 : 1 },
+              task.doneToday && styles.struck,
+            ]}
+            numberOfLines={1}>
+            {task.title}
+          </Text>
+        </Pressable>
+      </SwipeableRow>
+    );
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
@@ -132,48 +203,17 @@ export default function DailyScreen() {
           <Text style={[type.body, { color: colors.textPrimary }]}>Couldn’t load daily tasks.</Text>
         ) : (
           <View style={{ gap: space.s2 }}>
-            {(recurring.data ?? []).map((task) => (
-              <Pressable
-                key={task.id}
-                onPress={() => toggleDone(task)}
-                onLongPress={() => confirmArchive(task)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: task.doneToday }}
-                accessibilityLabel={task.title}
-                style={[
-                  styles.recurringRow,
-                  {
-                    backgroundColor: colors.surfaceElevated,
-                    borderColor: colors.borderSubtle,
-                    paddingHorizontal: space.s4,
-                    gap: space.s3,
-                  },
-                ]}>
-                <View
-                  style={[
-                    styles.checkCircle,
-                    {
-                      borderColor: task.doneToday ? colors.accent : colors.textTertiary,
-                      backgroundColor: task.doneToday ? colors.accent : 'transparent',
-                    },
-                  ]}>
-                  {task.doneToday && <IconSymbol name="checkmark" size={14} color={colors.textOnAccent} />}
-                </View>
-                <Text
-                  style={[
-                    type.body,
-                    styles.recurringTitle,
-                    { color: colors.textPrimary, opacity: task.doneToday ? 0.55 : 1 },
-                    task.doneToday && styles.struck,
-                  ]}
-                  numberOfLines={1}>
-                  {task.title}
-                </Text>
-              </Pressable>
-            ))}
+            {pendingRecurring.map(renderRecurringRow)}
 
             {(recurring.data ?? []).length === 0 && (
               <Text style={[type.body, { color: colors.textSecondary }]}>No daily tasks yet.</Text>
+            )}
+
+            {doneRecurring.length > 0 && (
+              <>
+                <Text style={[type.h2, { color: colors.textSecondary, marginTop: space.s2 }]}>Done</Text>
+                {doneRecurring.map(renderRecurringRow)}
+              </>
             )}
           </View>
         )}
@@ -232,6 +272,7 @@ export default function DailyScreen() {
                 task={task}
                 onSwipeRight={handleSwipeRight}
                 onSwipeLeft={handleSwipeLeft}
+                onPress={(t) => router.push(`/task/${t.id}`)}
                 enterFrom={getEnterFrom(task.id)}
                 onEntered={clearEnterMark}
               />

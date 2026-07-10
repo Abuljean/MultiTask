@@ -11,7 +11,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
-import { toInsertRow, toTask, type NewTask, type Task, type TaskRow } from './types';
+import { toInsertRow, toTask, toUpdateRow, type NewTask, type Task, type TaskEdits, type TaskRow } from './types';
 
 const TASKS_KEY = ['tasks'] as const;
 
@@ -94,6 +94,37 @@ export function useCreateTask() {
     onSuccess: (serverTask, { tempId }) =>
       queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
         old?.map((t) => (t.id === tempId ? serverTask : t))
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** Full-field edit from the task detail sheet. Optimistic like the rest. */
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, edits }: { id: number; edits: TaskEdits }) => {
+      const { error } = await supabase.from('task').update(toUpdateRow(edits)).eq('task_id', id);
+      if (error) throw error;
+    },
+    onMutate: ({ id, edits }) =>
+      applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                title: edits.title,
+                dueDate: edits.dueDate,
+                description: edits.description,
+                priority: edits.priority,
+                category: edits.category,
+                categoryColor: edits.categoryColor,
+                subject: edits.subject,
+                subjectColor: edits.subjectColor,
+              }
+            : t
+        )
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),

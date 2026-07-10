@@ -122,6 +122,7 @@ export default function TaskListScreen() {
               task={task}
               onSwipeRight={handleSwipeRight}
               onSwipeLeft={handleSwipeLeft}
+              onPress={(t) => router.push(`/task/${t.id}`)}
               enterFrom={getEnterFrom(task.id)}
               onEntered={clearEnterMark}
             />

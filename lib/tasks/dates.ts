@@ -47,6 +47,13 @@ export function addHours(date: Date, hours: number): Date {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
 
+/** Default due time for new tasks: today at 11:59 PM (developer decision). */
+export function endOfToday(): Date {
+  const d = new Date();
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
+
 /** Display format per docs/design/02: "Fri, May 24 · 2:30 PM" (year added
  *  only when it differs from the current year). */
 export function formatDueDate(date: Date, now: Date = new Date()): string {

@@ -7,14 +7,18 @@
 
 type Side = 'left' | 'right';
 
-const marks = new Map<number, { from: Side; at: number }>();
+// Keys are namespaced strings or raw task ids ("rec:3" for recurring rows,
+// plain numbers for tasks) so different row kinds can't collide.
+type MarkKey = number | string;
+
+const marks = new Map<MarkKey, { from: Side; at: number }>();
 const TTL_MS = 1500;
 
-export function markEnter(id: number, from: Side) {
+export function markEnter(id: MarkKey, from: Side) {
   marks.set(id, { from, at: Date.now() });
 }
 
-export function getEnterFrom(id: number): Side | null {
+export function getEnterFrom(id: MarkKey): Side | null {
   const mark = marks.get(id);
   if (!mark) return null;
   if (Date.now() - mark.at > TTL_MS) {
@@ -24,6 +28,6 @@ export function getEnterFrom(id: number): Side | null {
   return mark.from;
 }
 
-export function clearEnterMark(id: number) {
+export function clearEnterMark(id: MarkKey) {
   marks.delete(id);
 }

@@ -64,26 +64,49 @@ export default function TaskListScreen() {
   );
   const deletedCount = useMemo(() => (tasks ?? []).filter((t) => t.deletedAt).length, [tasks]);
 
+  // Batch exits: when the section is expanded, every visible card slides
+  // off-screen swipe-style in a slight cascade BEFORE the mutation runs (the
+  // cache update would otherwise remove the rows instantly, killing the
+  // motion). Collapsed sections skip straight to the mutation.
+  const [exiting, setExiting] = useState<Map<number, { to: 'left' | 'right'; delayMs: number }>>(new Map());
+
+  function runWithCascade(ids: number[], visible: boolean, mutate: () => void) {
+    if (!visible) {
+      mutate();
+      return;
+    }
+    const marks = new Map<number, { to: 'left' | 'right'; delayMs: number }>();
+    ids.forEach((id, index) => marks.set(id, { to: 'left', delayMs: Math.min(index, 8) * 30 }));
+    setExiting(marks);
+    const animationWindow = 240 + Math.min(ids.length, 8) * 30 + 40;
+    setTimeout(() => {
+      setExiting(new Map());
+      mutate();
+    }, animationWindow);
+  }
+
   // "Clear all completed" — the fix for the web app's most annoying bug.
-  // One sweep into the trash, one undo toast for the whole batch, and the
+  // One cascade into the trash, one undo toast for the whole batch, and the
   // section NEVER collapses on you mid-clear.
   function clearAllCompleted() {
     const ids = (tasks ?? []).filter((t) => t.isCompleted && !t.deletedAt).map((t) => t.id);
     if (ids.length === 0) return;
-    animateListChanges();
-    ids.forEach((id) => markEnter(id, 'left'));
-    bulkSoftDelete.mutate(ids, {
-      onError: () => toast.show({ message: 'Couldn’t clear completed — check your connection.' }),
-    });
-    toast.show({
-      message: `${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} deleted.`,
-      onUndo: () => {
-        animateListChanges();
-        ids.forEach((id) => markEnter(id, 'right'));
-        bulkRestore.mutate(ids, {
-          onError: () => toast.show({ message: 'Couldn’t restore — check your connection.' }),
-        });
-      },
+    runWithCascade(ids, !completedCollapsed, () => {
+      animateListChanges();
+      ids.forEach((id) => markEnter(id, 'left'));
+      bulkSoftDelete.mutate(ids, {
+        onError: () => toast.show({ message: 'Couldn’t clear completed — check your connection.' }),
+      });
+      toast.show({
+        message: `${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} deleted.`,
+        onUndo: () => {
+          animateListChanges();
+          ids.forEach((id) => markEnter(id, 'right'));
+          bulkRestore.mutate(ids, {
+            onError: () => toast.show({ message: 'Couldn’t restore — check your connection.' }),
+          });
+        },
+      });
     });
   }
 
@@ -97,13 +120,14 @@ export default function TaskListScreen() {
       {
         text: 'Empty',
         style: 'destructive',
-        onPress: () => {
-          animateListChanges();
-          bulkPermanentDelete.mutate(ids, {
-            onError: () => toast.show({ message: 'Couldn’t empty the trash — check your connection.' }),
-          });
-          toast.show({ message: 'Trash emptied.' });
-        },
+        onPress: () =>
+          runWithCascade(ids, !deletedCollapsed, () => {
+            animateListChanges();
+            bulkPermanentDelete.mutate(ids, {
+              onError: () => toast.show({ message: 'Couldn’t empty the trash — check your connection.' }),
+            });
+            toast.show({ message: 'Trash emptied.' });
+          }),
       },
     ]);
   }
@@ -191,6 +215,7 @@ export default function TaskListScreen() {
               onPress={(t) => router.push(`/task/${t.id}`)}
               enterFrom={getEnterFrom(task.id)}
               onEntered={clearEnterMark}
+              exit={exiting.get(task.id) ?? null}
             />
           )}
           ItemSeparatorComponent={() => <View style={{ height: space.s3 }} />}

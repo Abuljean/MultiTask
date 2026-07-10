@@ -14,6 +14,7 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -52,6 +53,10 @@ type Props = PropsWithChildren<{
   resetKey: string | number;
   enterFrom?: 'left' | 'right' | null;
   onEntered?: () => void;
+  /** Programmatic exit (bulk clear / empty trash): the row slides off-screen
+   *  exactly like a committed swipe, optionally delayed for a cascade. The
+   *  caller runs the actual mutation after the animation window. */
+  exit?: { to: 'left' | 'right'; delayMs: number } | null;
 }>;
 
 export function SwipeableRow({
@@ -62,6 +67,7 @@ export function SwipeableRow({
   resetKey,
   enterFrom,
   onEntered,
+  exit,
   children,
 }: Props) {
   const { colors, radius } = useTheme();
@@ -84,6 +90,20 @@ export function SwipeableRow({
       onEntered?.();
     }
   }, [enterFrom, screenWidth, translateX, onEntered]);
+
+  // Programmatic exit: same slide-off as a committed swipe (240ms ease-out),
+  // staggerable for batch cascades.
+  useEffect(() => {
+    if (exit) {
+      translateX.value = withDelay(
+        exit.delayMs,
+        withTiming((exit.to === 'left' ? -1 : 1) * screenWidth, {
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+        })
+      );
+    }
+  }, [exit, screenWidth, translateX]);
 
   function thresholdHaptic(direction: number) {
     Haptics.impactAsync(

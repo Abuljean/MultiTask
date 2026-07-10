@@ -5,8 +5,9 @@
 // wheel with 15-minute steps (developer preference from the handoff).
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,6 +15,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +41,28 @@ function nextRoundQuarterHour(): Date {
 export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
   const { colors, space, radius, type, monoFont, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
+
+  // The sheet's open/close is animated manually (Modal has animationType
+  // "none"): the built-in Modal dismissal gets visually cut short when the
+  // keyboard drops at the same time. Here the sheet slides down IN SYNC with
+  // the keyboard, and the backdrop fades alongside.
+  const sheetOffset = useSharedValue(screenHeight);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      backdropOpacity.value = withTiming(1, { duration: 220 });
+      sheetOffset.value = withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) });
+    }
+  }, [visible, backdropOpacity, sheetOffset]);
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetOffset.value }],
+  }));
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value * 0.35,
+  }));
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState<Date>(nextRoundQuarterHour);
   // `picker` = which chip is logically active; `renderedPicker` keeps the
@@ -82,9 +106,23 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
     setPicker(null);
   }
 
-  function close() {
+  function finishClose() {
     reset();
     onClose();
+  }
+
+  function close() {
+    // Keyboard and sheet leave together; the modal unmounts only after the
+    // slide-down completes.
+    Keyboard.dismiss();
+    backdropOpacity.value = withTiming(0, { duration: 220 });
+    sheetOffset.value = withTiming(
+      screenHeight,
+      { duration: 260, easing: Easing.in(Easing.cubic) },
+      (finished) => {
+        if (finished) runOnJS(finishClose)();
+      }
+    );
   }
 
   function submit() {
@@ -125,15 +163,17 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
   } as const;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
+      {/* Backdrop: tap outside to cancel. */}
+      <Animated.View style={[styles.backdrop, backdropStyle]} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}>
-        {/* Backdrop: tap outside to cancel. */}
-        <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Close quick add" />
-        <View
+        <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close quick add" />
+        <Animated.View
           style={[
             styles.sheet,
+            sheetStyle,
             {
               backgroundColor: colors.surfaceElevated,
               borderTopLeftRadius: radius.card,
@@ -231,7 +271,7 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
             ]}>
             <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>Add task</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -244,7 +284,10 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: '#000', // opacity is animated
+  },
+  backdropTouch: {
+    ...StyleSheet.absoluteFillObject,
   },
   sheet: {
     width: '100%',

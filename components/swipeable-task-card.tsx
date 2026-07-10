@@ -28,7 +28,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Task } from '@/lib/tasks/types';
 import { useTheme } from '@/lib/theme/use-theme';
 
-const THRESHOLD_FRACTION = 0.2;
+const THRESHOLD_FRACTION = 0.25;
 
 // The trail only reveals once the card has actually moved — a resting or
 // barely-wiggled card must never flash the action colors behind it.
@@ -36,7 +36,12 @@ const TRAIL_REVEAL_PX = 4;
 
 // High damping: springs settle quickly with barely any sway (developer
 // feedback — "it has to settle faster, there can't be too much swaying").
+// Used for the snap-back when a swipe is released below the threshold.
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
+
+// Entrance spring: slower arrival with a soft, visible settle (developer
+// wants to compare this against the bounceless timing version).
+const ENTER_SPRING = { damping: 18, stiffness: 130 };
 
 type Props = {
   task: Task;
@@ -69,12 +74,11 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
   }, [task.id, task.isCompleted, isDeleted, translateX, crossedDirection]);
 
   // Entrance: slide in from the side the task left through. Runs on mount or
-  // whenever the screen marks this task as freshly moved. Timing curve, not
-  // a spring — entrances land with zero bounce (developer preference).
+  // whenever the screen marks this task as freshly moved.
   useEffect(() => {
     if (enterFrom) {
       translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
-      translateX.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) });
+      translateX.value = withSpring(0, ENTER_SPRING);
       onEntered?.(task.id);
     }
   }, [enterFrom, task.id, screenWidth, translateX, onEntered]);

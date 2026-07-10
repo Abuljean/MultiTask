@@ -49,6 +49,8 @@ function RootNavigator() {
           name="task/[id]"
           options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }}
         />
+        {/* Calendar day drill-down: a regular push with the native back. */}
+        <Stack.Screen name="day/[date]" options={{ headerShown: true }} />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />

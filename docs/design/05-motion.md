@@ -65,7 +65,8 @@ Every named transition in the app.
 
 > **Resolved (2026-07-10, on-device tuning session with the developer) — final swipe/regroup motion values. These override the generic specs below where they differ:**
 > - Swipe commit threshold: **16.18% of screen width** (golden ratio). Below it: spring back with `{ damping: 26, stiffness: 240 }` (fast settle, no sway). Crossing it: haptic tick. Release past it: slide off-screen 240ms ease-out.
-> - **Regroup entrance:** when a task moves groups (complete/restore/undo), its card slides in from the side it exited through (left when entering the trash, right otherwise), traveling 60% of screen width over **380ms ease-out — NO bounce, no recoil** (springs were tried at several overshoot ratios and rejected).
+> - **Regroup entrance:** when a task moves groups (complete/restore/undo/create), its card slides in from the side it exited through (left when entering the trash, right otherwise), traveling 60% of screen width over **647.2ms ease-out — NO bounce, no recoil** (springs were tried at several overshoot ratios and rejected; 647.2 = 400 × φ, developer's golden-ratio pick).
+> - **Implementation warning:** never put animated content inside an RN `<Modal>` — Reanimated and LayoutAnimation both silently no-op there on the new architecture. Use a `transparentModal` route (see `app/quick-add.tsx`) instead.
 > - List regroups use one shared LayoutAnimation: spring updates `springDamping 0.95`, arrivals fade in delayed 80ms, exits fade 150ms.
 > - Trails reveal only after 4px of movement; card surfaces stay opaque (muted state fades content only) so trails can never bleed through.
 

@@ -66,8 +66,9 @@ export default function TaskListScreen() {
 
   function onListScroll(event: { nativeEvent: { contentOffset: { y: number } } }) {
     const y = event.nativeEvent.contentOffset.y;
-    if (!searchVisible && y < -35) {
-      // Intentional pull past the top (iOS overscroll).
+    if (!searchVisible && y < -70) {
+      // A firm, deliberate pull past the top (iOS overscroll) — tuned hard
+      // on purpose (developer request); casual bounces never trigger it.
       showSearch();
     } else if (searchVisible && !searching && !filterPanelOpen && y > 100) {
       // Nothing active and the user is scrolling on — tuck it away.

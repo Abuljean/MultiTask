@@ -63,6 +63,12 @@ Every named transition in the app.
 - Opacity 0 → 1, offset by 40ms so appearance leads the sizing
 - If added at the top of the visible list, the list below shifts down using `LayoutAnimation` (native) or `withSpring` on each row
 
+> **Resolved (2026-07-10, on-device tuning session with the developer) — final swipe/regroup motion values. These override the generic specs below where they differ:**
+> - Swipe commit threshold: **16.18% of screen width** (golden ratio). Below it: spring back with `{ damping: 26, stiffness: 240 }` (fast settle, no sway). Crossing it: haptic tick. Release past it: slide off-screen 240ms ease-out.
+> - **Regroup entrance:** when a task moves groups (complete/restore/undo), its card slides in from the side it exited through (left when entering the trash, right otherwise), traveling 60% of screen width over **380ms ease-out — NO bounce, no recoil** (springs were tried at several overshoot ratios and rejected).
+> - List regroups use one shared LayoutAnimation: spring updates `springDamping 0.95`, arrivals fade in delayed 80ms, exits fade 150ms.
+> - Trails reveal only after 4px of movement; card surfaces stay opaque (muted state fades content only) so trails can never bleed through.
+
 ### Task card completion (swipe-right or check tap)
 - Card slides right off-screen: `translateX` to viewport width, `motion.emphasis` (360ms, easeOut)
 - Simultaneously: check icon overlays center with a scale-bounce (`motion.spring.bouncy`)

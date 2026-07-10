@@ -40,11 +40,9 @@ const TRAIL_REVEAL_PX = 4;
 // Used for the snap-back when a swipe is released below the threshold.
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
 
-// Entrance spring (developer pick, final): the bounce overshoots the
-// resting point by 16.18% of the travel distance (golden ratio of the
-// 60%-width slide-in). Overshoot = exp(-πζ/√(1-ζ²)) ⇒ damping ratio
-// ζ ≈ 0.50; with mass 1: damping = 2ζ√stiffness ⇒ 11 at stiffness 120.
-const ENTER_SPRING = { damping: 11, stiffness: 120 };
+// Entrance (developer pick, FINAL after tuning session 2026-07-10): glide
+// in and stop dead — pure deceleration, no bounce, no recoil.
+const ENTER_DURATION_MS = 380;
 
 type Props = {
   task: Task;
@@ -81,7 +79,7 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
   useEffect(() => {
     if (enterFrom) {
       translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
-      translateX.value = withSpring(0, ENTER_SPRING);
+      translateX.value = withTiming(0, { duration: ENTER_DURATION_MS, easing: Easing.out(Easing.cubic) });
       onEntered?.(task.id);
     }
   }, [enterFrom, task.id, screenWidth, translateX, onEntered]);

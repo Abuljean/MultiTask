@@ -173,9 +173,15 @@ export default function DailyScreen() {
             ))}
 
             {(recurring.data ?? []).length === 0 && (
-              <Text style={[type.body, { color: colors.textSecondary }]}>No daily tasks.</Text>
+              <Text style={[type.body, { color: colors.textSecondary }]}>No daily tasks yet.</Text>
             )}
+          </View>
+        )}
 
+        {/* Always-visible add affordance: a ghost pill row matching the
+            recurring rows' shape, so it can't be missed but stays calm. */}
+        {!recurring.isLoading && (
+          <View style={{ marginTop: space.s2 }}>
             {adding ? (
               <TextInput
                 style={[
@@ -196,12 +202,18 @@ export default function DailyScreen() {
                 onBlur={submitNew}
               />
             ) : (
-              <Text
+              <Pressable
                 onPress={() => setAdding(true)}
                 accessibilityRole="button"
-                style={[type.body, { color: colors.accent, paddingVertical: space.s2 }]}>
-                Add daily task
-              </Text>
+                accessibilityLabel="New daily task"
+                style={[
+                  styles.recurringRow,
+                  styles.ghostRow,
+                  { borderColor: colors.borderSubtle, paddingHorizontal: space.s4, gap: space.s3 },
+                ]}>
+                <IconSymbol name="plus" size={18} color={colors.textTertiary} />
+                <Text style={[type.body, { color: colors.textSecondary }]}>New daily task</Text>
+              </Pressable>
             )}
           </View>
         )}
@@ -260,5 +272,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 999,
     fontSize: 15,
+  },
+  ghostRow: {
+    borderStyle: 'dashed',
+    backgroundColor: 'transparent',
   },
 });

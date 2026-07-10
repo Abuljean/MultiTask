@@ -40,6 +40,12 @@ Per the developer's top-priority requirement.
 - **Widget:** deep-link that opens the app directly into quick-add
 - **Voice (Siri/Assistant):** ambition — see roadmap
 
+> **Resolved (2026-07-10, developer decisions):**
+> - **Default due time is TODAY 11:59 PM** (not "next round 15 min"), unless the user changes it. Consequence: the time wheel is minute-precise (a 15-minute-step wheel can't represent :59).
+> - The "+ details" reveal is built: a collapsed "Details" row under the date/time chips that slides open with priority chips, the user's existing categories and subjects (data-driven, with their colors), and a description field. Creating new categories/subjects (with color picker) belongs to the task-detail slice.
+> - The sheet body scrolls (bounces off); **dismissal is tap-outside or Add ONLY** — scrolling can never close the sheet.
+> - The keyboard's Done key only dismisses the keyboard; adding happens only via the Add task button.
+
 ### The quick-add sheet
 - Bottom sheet on mobile, centered dialog on desktop (max width 480)
 - Keyboard opens immediately on the title field (autofocus)

@@ -90,7 +90,7 @@ export default function CalendarScreen() {
     return colors.statusOngoingAccent;
   }
 
-  function renderDayCell(date: Date | null, index: number) {
+  function renderDayCell(date: Date | null, index: number, isCurrentMonth: boolean) {
     if (!date) {
       return <View key={`blank-${index}`} style={styles.dayCell} />;
     }
@@ -99,38 +99,43 @@ export default function CalendarScreen() {
     const isToday = key === todayKey;
     const hasOverdue = dayTasks.some((t) => deriveStatus(t) === 'overdue');
     return (
-      <View key={key} style={styles.dayCell}>
-        {/* Grey tile per day (developer pick) — days read as distinct
-            targets; overdue days tint red on top of that. */}
-        <Pressable
-          onPress={() => router.push({ pathname: '/day/[date]', params: { date: key } })}
-          accessibilityRole="button"
-          accessibilityLabel={`${date.toDateString()}, ${dayTasks.length} tasks`}
-          style={[
-            styles.dayTile,
-            { backgroundColor: hasOverdue ? colors.statusOverdueBg : colors.surfaceSunken },
-          ]}>
-          <View style={[styles.dayNumberWrap, isToday && { backgroundColor: colors.accent, borderRadius: 999 }]}>
-            <Text
-              style={{
-                fontSize: 15,
-                lineHeight: 20,
-                fontWeight: isToday ? '600' : '500',
-                color: isToday ? colors.textOnAccent : colors.textPrimary,
-              }}>
-              {date.getDate()}
-            </Text>
-          </View>
-          <View style={styles.dotRow}>
-            {dayTasks.slice(0, 3).map((t) => (
-              <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
-            ))}
-            {dayTasks.length > 3 && (
-              <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
-            )}
-          </View>
-        </Pressable>
-      </View>
+      <Pressable
+        key={key}
+        onPress={() => router.push({ pathname: '/day/[date]', params: { date: key } })}
+        accessibilityRole="button"
+        accessibilityLabel={`${date.toDateString()}, ${dayTasks.length} tasks`}
+        style={[
+          styles.dayCell,
+          { borderColor: colors.borderSubtle },
+          hasOverdue && { backgroundColor: colors.statusOverdueBg, borderRadius: 8 },
+        ]}>
+        <View style={[styles.dayNumberWrap, isToday && { backgroundColor: colors.accent, borderRadius: 999 }]}>
+          {/* Only the CURRENT month's days are full-color; every other
+              month's days are greyed (developer pick — orientation while
+              scrolling). */}
+          <Text
+            style={{
+              fontSize: 15,
+              lineHeight: 20,
+              fontWeight: isToday ? '600' : '500',
+              color: isToday
+                ? colors.textOnAccent
+                : isCurrentMonth
+                  ? colors.textPrimary
+                  : colors.textTertiary,
+            }}>
+            {date.getDate()}
+          </Text>
+        </View>
+        <View style={styles.dotRow}>
+          {dayTasks.slice(0, 3).map((t) => (
+            <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
+          ))}
+          {dayTasks.length > 3 && (
+            <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
+          )}
+        </View>
+      </Pressable>
     );
   }
 
@@ -158,7 +163,7 @@ export default function CalendarScreen() {
         </View>
         {weeks.map((week, weekIndex) => (
           <View key={weekIndex} style={styles.weekRow}>
-            {week.map(renderDayCell)}
+            {week.map((date, i) => renderDayCell(date, i, isCurrentMonth))}
           </View>
         ))}
       </View>
@@ -203,13 +208,17 @@ export default function CalendarScreen() {
                   styles.monthBlock,
                   {
                     height: YEAR_BLOCK_HEIGHT,
-                    backgroundColor: colors.surfaceSunken,
-                    borderColor: isCurrent ? colors.accent : 'transparent',
-                    borderWidth: 1.5,
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: isCurrent ? colors.accent : colors.borderSubtle,
+                    borderWidth: isCurrent ? 1.5 : 1,
                     padding: space.s3,
                   },
                 ]}>
-                <Text style={[type.h2, { color: colors.textPrimary }]}>{name.slice(0, 3)}</Text>
+                {/* Past/future YEARS read grey; only the current year's
+                    months are full-color (developer pick). */}
+                <Text style={[type.h2, { color: isCurrentYear ? colors.textPrimary : colors.textTertiary }]}>
+                  {name.slice(0, 3)}
+                </Text>
                 <Text style={[type.caption, { color: colors.textTertiary }]}>
                   {count === 0 ? '—' : `${count} task${count === 1 ? '' : 's'}`}
                 </Text>
@@ -298,14 +307,10 @@ const styles = StyleSheet.create({
   dayCell: {
     flex: 1,
     height: DAY_CELL_HEIGHT,
-    padding: 1.5, // gap between tiles without changing row geometry
-  },
-  dayTile: {
-    flex: 1,
     alignItems: 'center',
-    paddingTop: 5,
+    paddingTop: 6,
     gap: 4,
-    borderRadius: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   dayNumberWrap: {
     width: 30,

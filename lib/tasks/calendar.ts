@@ -18,9 +18,11 @@ export function parseDateKey(key: string): Date {
 
 /**
  * The month laid out as weeks of 7 cells; cells outside the month are null.
- * `month` is 0-based like the Date API.
+ * `month` is 0-based like the Date API. `alwaysSixWeeks` pads to a constant
+ * 6-row grid — the scrolling calendar needs every month the same height so
+ * scroll positions are exact.
  */
-export function buildMonthMatrix(year: number, month: number): (Date | null)[][] {
+export function buildMonthMatrix(year: number, month: number, alwaysSixWeeks = false): (Date | null)[][] {
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const leadingBlanks = firstDay.getDay(); // 0 = Sunday
@@ -29,7 +31,8 @@ export function buildMonthMatrix(year: number, month: number): (Date | null)[][]
     ...Array.from({ length: leadingBlanks }, () => null),
     ...Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1)),
   ];
-  while (cells.length % 7 !== 0) {
+  const targetLength = alwaysSixWeeks ? 42 : Math.ceil(cells.length / 7) * 7;
+  while (cells.length < targetLength) {
     cells.push(null);
   }
 

@@ -39,6 +39,13 @@ describe('buildMonthMatrix', () => {
     expect(weeks[0][1]?.getDate()).toBe(1); // Monday the 1st
   });
 
+  test('alwaysSixWeeks pads every month to 6 rows', () => {
+    expect(buildMonthMatrix(2026, 6, true)).toHaveLength(6); // naturally 5
+    expect(buildMonthMatrix(2027, 1, true)).toHaveLength(6); // naturally 5 (28 days + 1 blank)
+    expect(buildMonthMatrix(2026, 7, true)).toHaveLength(6); // Aug 2026 naturally 6
+    expect(buildMonthMatrix(2026, 6, true).flat().filter(Boolean)).toHaveLength(31);
+  });
+
   test('every week has exactly 7 cells', () => {
     for (const [y, m] of [
       [2026, 0],

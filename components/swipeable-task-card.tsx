@@ -28,7 +28,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Task } from '@/lib/tasks/types';
 import { useTheme } from '@/lib/theme/use-theme';
 
-const THRESHOLD_FRACTION = 0.3;
+const THRESHOLD_FRACTION = 0.2;
+
+// The trail only reveals once the card has actually moved — a resting or
+// barely-wiggled card must never flash the action colors behind it.
+const TRAIL_REVEAL_PX = 4;
 
 // High damping: springs settle quickly with barely any sway (developer
 // feedback — "it has to settle faster, there can't be too much swaying").
@@ -65,11 +69,12 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
   }, [task.id, task.isCompleted, isDeleted, translateX, crossedDirection]);
 
   // Entrance: slide in from the side the task left through. Runs on mount or
-  // whenever the screen marks this task as freshly moved.
+  // whenever the screen marks this task as freshly moved. Timing curve, not
+  // a spring — entrances land with zero bounce (developer preference).
   useEffect(() => {
     if (enterFrom) {
       translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
-      translateX.value = withSpring(0, SETTLE_SPRING);
+      translateX.value = withTiming(0, { duration: 260, easing: Easing.out(Easing.cubic) });
       onEntered?.(task.id);
     }
   }, [enterFrom, task.id, screenWidth, translateX, onEntered]);
@@ -125,7 +130,7 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
 
   // Right-swipe trail (revealed on the left as the card moves right).
   const rightTrailStyle = useAnimatedStyle(() => ({
-    opacity: translateX.value > 0 ? 1 : 0,
+    opacity: translateX.value > TRAIL_REVEAL_PX ? 1 : 0,
   }));
   const rightIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(translateX.value, [0, screenWidth * 0.1], [0, 1], 'clamp'),
@@ -136,7 +141,7 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
 
   // Left-swipe trail (revealed on the right as the card moves left).
   const leftTrailStyle = useAnimatedStyle(() => ({
-    opacity: translateX.value < 0 ? 1 : 0,
+    opacity: translateX.value < -TRAIL_REVEAL_PX ? 1 : 0,
   }));
   const leftIconStyle = useAnimatedStyle(() => ({
     opacity: interpolate(-translateX.value, [0, screenWidth * 0.1], [0, 1], 'clamp'),

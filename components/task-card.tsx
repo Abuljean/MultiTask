@@ -60,12 +60,14 @@ export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPres
           borderColor: colors.borderSubtle,
           borderRadius: radius.card,
           padding: space.s4,
-          opacity: task.isCompleted || task.deletedAt ? 0.6 : 1,
         },
       ]}>
       {accentBar && <View style={[styles.accentBar, { backgroundColor: accentBar }]} />}
 
-      <View style={styles.content}>
+      {/* Muted look for done/trashed tasks: fade the CONTENT only. The card
+          surface stays opaque — a translucent card lets the swipe trails
+          behind it bleed through (visible flicker when wiggled). */}
+      <View style={[styles.content, { opacity: task.isCompleted || task.deletedAt ? 0.55 : 1 }]}>
         <Text
           numberOfLines={2}
           style={[type.h2, { color: colors.textPrimary }, task.isCompleted && styles.titleCompleted]}>

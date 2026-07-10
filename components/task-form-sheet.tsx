@@ -10,7 +10,7 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Keyboard,
   Platform,
@@ -25,6 +25,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { CollapsibleReveal } from '@/components/collapsible-reveal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { endOfToday } from '@/lib/tasks/dates';
 import { useTasks } from '@/lib/tasks/use-tasks';
@@ -58,35 +59,6 @@ const SWATCHES = [
   '#f87171', '#fb923c', '#fbbf24', '#fef08a', '#a3e635', '#4ade80',
   '#2dd4bf', '#60a5fa', '#818cf8', '#c084fc', '#f472b6', '#e5e7eb',
 ];
-
-/** Measured-height collapsible: children render at natural size (absolutely,
- *  clipped) and the container's height animates between 0 and that size. */
-function Collapsible({ open, children }: PropsWithChildren<{ open: boolean }>) {
-  const contentHeight = useSharedValue(0);
-  const progress = useSharedValue(0);
-
-  useEffect(() => {
-    progress.value = withTiming(open ? 1 : 0, SLIDE);
-  }, [open, progress]);
-
-  const style = useAnimatedStyle(() => ({
-    height: contentHeight.value * progress.value,
-    opacity: progress.value,
-    overflow: 'hidden',
-  }));
-
-  return (
-    <Animated.View style={style}>
-      <View
-        style={styles.collapsibleInner}
-        onLayout={(e) => {
-          contentHeight.value = e.nativeEvent.layout.height;
-        }}>
-        {children}
-      </View>
-    </Animated.View>
-  );
-}
 
 /** Inline creator for a new category/subject: name + swatch, Done to create. */
 function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCreate: (option: NamedColor) => void }) {
@@ -470,7 +442,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             />
           </Pressable>
 
-          <Collapsible open={detailsOpen}>
+          <CollapsibleReveal open={detailsOpen}>
             <View style={{ gap: space.s3, paddingTop: space.s2 }}>
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Priority</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
@@ -559,7 +531,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                 multiline
               />
             </View>
-          </Collapsible>
+          </CollapsibleReveal>
         </ScrollView>
 
         <Pressable
@@ -618,12 +590,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-  },
-  collapsibleInner: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
   },
   detailLabel: {
     fontSize: 12,

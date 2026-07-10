@@ -8,14 +8,17 @@ import { Alert, RefreshControl, SectionList, StyleSheet, Text, View } from 'reac
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
+import { SearchFilterBar } from '@/components/search-filter-bar';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { useTaskActions } from '@/hooks/use-task-actions';
+import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { animateListChanges } from '@/lib/animate-layout';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
-import { groupTasks, type SectionKey } from '@/lib/tasks/sections';
+import { EMPTY_FILTERS, filterTasks, hasActiveFilters, type TaskFilters } from '@/lib/tasks/filter';
+import { groupTasks } from '@/lib/tasks/sections';
 import {
   useBulkPermanentlyDeleteTasks,
   useBulkRestoreTasks,
@@ -36,6 +39,33 @@ export default function TaskListScreen() {
   const toast = useUndoToast();
   const [completedCollapsed, toggleCompleted] = useCollapsedSection('ui.completedCollapsed');
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
+  const urgencyThresholdHours = useUrgencyThreshold();
+
+  // Search + filter (hidden above the fold; pull down a little to reveal).
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const searching = hasActiveFilters(filters);
+
+  const filterOptions = useMemo(() => {
+    const cats = new Map<string, string>();
+    const subs = new Map<string, string>();
+    for (const t of tasks ?? []) {
+      if (t.deletedAt) continue;
+      if (t.category && t.category !== 'Uncategorized' && !cats.has(t.category)) {
+        cats.set(t.category, t.categoryColor);
+      }
+      if (t.subject && !subs.has(t.subject)) subs.set(t.subject, t.subjectColor);
+    }
+    return {
+      categories: [...cats].map(([name, color]) => ({ name, color })),
+      subjects: [...subs].map(([name, color]) => ({ name, color })),
+    };
+  }, [tasks]);
+
+  const results = useMemo(
+    () => (searching ? filterTasks(tasks ?? [], filters, { urgencyThresholdHours }) : []),
+    [searching, tasks, filters, urgencyThresholdHours]
+  );
 
   // The refresh spinner appears ONLY for a physical pull-down — background
   // refetches after mutations stay invisible (developer feedback).
@@ -50,13 +80,17 @@ export default function TaskListScreen() {
   }
 
   const sections = useMemo(() => {
+    if (searching) {
+      // Filtering hides everything else: one flat results section.
+      return [{ key: 'results', title: `Results (${results.length})`, data: results }];
+    }
     const grouped = groupTasks(tasks ?? []);
     return grouped.map((section) =>
       (section.key === 'completed' && completedCollapsed) || (section.key === 'deleted' && deletedCollapsed)
         ? { ...section, data: [] }
         : section
     );
-  }, [tasks, completedCollapsed, deletedCollapsed]);
+  }, [searching, results, tasks, completedCollapsed, deletedCollapsed]);
 
   const completedCount = useMemo(
     () => (tasks ?? []).filter((t) => t.isCompleted && !t.deletedAt).length,
@@ -132,7 +166,7 @@ export default function TaskListScreen() {
     ]);
   }
 
-  function renderCollapsibleHeader(key: SectionKey) {
+  function renderCollapsibleHeader(key: string) {
     const isCompleted = key === 'completed';
     const collapsed = isCompleted ? completedCollapsed : deletedCollapsed;
     const toggle = isCompleted ? toggleCompleted : toggleDeleted;
@@ -197,6 +231,21 @@ export default function TaskListScreen() {
           keyExtractor={(task) => String(task.id)}
           stickySectionHeadersEnabled
           refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
+          // The search bar hides above the fold; a small pull reveals it, a
+          // bigger pull still refreshes (iOS Mail pattern). iOS-only prop —
+          // Android simply shows the bar.
+          contentOffset={{ x: 0, y: 56 }}
+          ListHeaderComponent={
+            <SearchFilterBar
+              filters={filters}
+              onChange={setFilters}
+              panelOpen={filterPanelOpen}
+              onTogglePanel={() => setFilterPanelOpen((open) => !open)}
+              categories={filterOptions.categories}
+              subjects={filterOptions.subjects}
+            />
+          }
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
           renderSectionHeader={({ section }) =>
             section.key === 'completed' || section.key === 'deleted' ? (
@@ -222,7 +271,7 @@ export default function TaskListScreen() {
           SectionSeparatorComponent={() => <View style={{ height: space.s2 }} />}
           ListEmptyComponent={
             <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s6 }]}>
-              No tasks yet.
+              {searching ? 'No matching tasks.' : 'No tasks yet.'}
             </Text>
           }
         />

@@ -1,13 +1,17 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Button, Platform, StyleSheet } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/lib/supabase';
 import { Link } from 'expo-router';
 
 export default function HomeScreen() {
+  const { session } = useAuth();
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -20,6 +24,12 @@ export default function HomeScreen() {
       <ThemedView style={styles.titleContainer}>
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
+      </ThemedView>
+      {/* Temporary auth test harness — removed when the real Today view lands. */}
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Auth check</ThemedText>
+        <ThemedText>Signed in as {session?.user.email ?? 'unknown'}</ThemedText>
+        <Button title="Sign out" onPress={() => supabase.auth.signOut()} />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>

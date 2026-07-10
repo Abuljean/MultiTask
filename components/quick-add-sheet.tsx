@@ -159,8 +159,11 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
             value={title}
             onChangeText={setTitle}
             autoFocus
+            // Done on the keyboard only dismisses the keyboard (blur), making
+            // room for the pickers — with keyboard + calendar open the sheet
+            // nearly fills the screen. Adding happens ONLY via the Add task
+            // button (developer decision, 2026-07-10).
             returnKeyType="done"
-            onSubmitEditing={submit}
           />
 
           <View style={[styles.chipRow, { gap: space.s2, marginTop: space.s3 }]}>

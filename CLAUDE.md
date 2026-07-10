@@ -11,10 +11,15 @@ This file gives Claude Code context at the start of every session. Keep it updat
 - **Platforms:** iOS + Android (primary), then desktop, then a re-skinned web. Developer is on **Windows** (iOS builds via EAS cloud; real iPhone used instead of the Mac-only simulator; iOS widgets will need occasional Mac access).
 
 ## Current state (update this as you go)
-- Fresh Expo SDK 54 project created.
-- Linked to the private GitHub repo `multitask` and pushed.
-- Claude Code just set up. **Not yet started real feature work.**
-- **Next milestone:** Stage 1 — set up Supabase Row Level Security and resolve the user-ID migration (mapping existing web-app users to Supabase Auth UUIDs).
+- **Project recreated on Expo SDK 54** (expo-router default template, at repo root) to match the Expo Go app on the developer's iPhone. The accidental SDK 57 root project and the nested duplicate `multitask/` folder were removed (2026-07-09). **Do not update Expo Go on the phone** — it supports one SDK at a time.
+- Docs, design system, and web-app reference committed. `reference/config-and-infra/_env` contains live DB credentials — gitignored, must never be committed; rotating that DB password is recommended (coordinate with the Render env var).
+- **Stage 1 (RLS) in progress.** SQL lives in `supabase/` (numbered files the developer runs in the Supabase SQL editor):
+  - `00` (schema inspection) and `01` (enable RLS on `task`, `app_users`, `verification_tokens`) — **already run**; web app verified still working. The postgres role owns the tables so RLS doesn't apply to it — never use FORCE ROW LEVEL SECURITY.
+  - `02` (adds `task.user_uuid` → auth.users, column defaults, nullable `user_id`, grants + 4 per-user policies, email-matching cross-fill trigger) — **not yet run**.
+  - `03` (re-runnable backfill linking old tasks to Supabase Auth signups by email) — run after signups.
+- **Key schema facts (inspected live):** table is `task` (singular); `task_id` comes from `task_seq` (increment 50, Hibernate block allocator — a DB-default `nextval` coexists collision-free); `due_date` is wall-clock `timestamp without time zone`; 12 users / 19 tasks in prod. Supabase Data API currently disabled — enable it only after `02` is run.
+- **Decisions made:** no formal account migration — everyone (incl. the developer) signs up fresh in Supabase Auth; old tasks auto-link by email via `03` + the insert trigger. The web app keeps Java auth untouched for the whole native build.
+- **Next milestone:** developer runs `02` → enable Data API → Step 2: `@supabase/supabase-js` client + gitignored env → Step 3: auth flow (bare-bones screens) → Step 4: online-only task data layer (TanStack Query + urgency logic ported with tests). Offline sync engine (PowerSync vs WatermelonDB) deliberately deferred to Stage 3.
 
 > **PHASING — read this, it prevents scope creep.** This project is built in distinct phases, NOT all at once:
 > 1. **NOW: build the native app (this repo)** completely — it is the design source of truth for the whole product.

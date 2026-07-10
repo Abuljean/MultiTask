@@ -155,16 +155,6 @@ export default function DailyScreen() {
               gap: space.s3,
             },
           ]}>
-          <View
-            style={[
-              styles.checkCircle,
-              {
-                borderColor: task.doneToday ? colors.accent : colors.textTertiary,
-                backgroundColor: task.doneToday ? colors.accent : 'transparent',
-              },
-            ]}>
-            {task.doneToday && <IconSymbol name="checkmark" size={14} color={colors.textOnAccent} />}
-          </View>
           <Text
             style={[
               type.body,
@@ -292,14 +282,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 999, // pill-shaped per the design doc — distinct from task cards
     borderWidth: 1,
-  },
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   recurringTitle: {
     flex: 1,

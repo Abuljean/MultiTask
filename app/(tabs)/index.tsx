@@ -61,19 +61,26 @@ export default function TaskListScreen() {
   );
   const deletedCount = useMemo(() => (tasks ?? []).filter((t) => t.deletedAt).length, [tasks]);
 
+  // A failed mutation rolls the optimistic change back — the task visibly
+  // snaps back. Without a message that reads as a spooky bug, so every
+  // handler surfaces the failure factually.
+  function showError(what: string) {
+    return () => toast.show({ message: `Couldn’t ${what} — check your connection.` });
+  }
+
   function handleSwipeRight(task: Task) {
     animateListChanges();
     if (task.deletedAt) {
-      restoreTask.mutate(task.id);
+      restoreTask.mutate(task.id, { onError: showError('restore the task') });
     } else if (task.isCompleted) {
-      setCompleted.mutate({ id: task.id, isCompleted: false });
+      setCompleted.mutate({ id: task.id, isCompleted: false }, { onError: showError('update the task') });
     } else {
-      setCompleted.mutate({ id: task.id, isCompleted: true });
+      setCompleted.mutate({ id: task.id, isCompleted: true }, { onError: showError('complete the task') });
       toast.show({
         message: 'Task completed.',
         onUndo: () => {
           animateListChanges();
-          setCompleted.mutate({ id: task.id, isCompleted: false });
+          setCompleted.mutate({ id: task.id, isCompleted: false }, { onError: showError('update the task') });
         },
       });
     }
@@ -82,15 +89,15 @@ export default function TaskListScreen() {
   function handleSwipeLeft(task: Task) {
     animateListChanges();
     if (task.deletedAt) {
-      permanentlyDelete.mutate(task.id);
+      permanentlyDelete.mutate(task.id, { onError: showError('delete the task') });
       toast.show({ message: 'Task permanently deleted.' });
     } else {
-      deleteTask.mutate(task.id);
+      deleteTask.mutate(task.id, { onError: showError('delete the task') });
       toast.show({
         message: 'Task deleted.',
         onUndo: () => {
           animateListChanges();
-          restoreTask.mutate(task.id);
+          restoreTask.mutate(task.id, { onError: showError('restore the task') });
         },
       });
     }

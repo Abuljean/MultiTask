@@ -10,7 +10,7 @@
 // releasing past it slides the card off (240ms ease-out) and fires.
 // Reanimated animations respect the system reduce-motion setting by default.
 import * as Haptics from 'expo-haptics';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -30,6 +30,10 @@ import { useTheme } from '@/lib/theme/use-theme';
 
 const THRESHOLD_FRACTION = 0.3;
 
+// High damping: springs settle quickly with barely any sway (developer
+// feedback — "it has to settle faster, there can't be too much swaying").
+const SETTLE_SPRING = { damping: 26, stiffness: 240 };
+
 type Props = {
   task: Task;
   onSwipeRight: (task: Task) => void;
@@ -43,12 +47,31 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress }: 
   const translateX = useSharedValue(0);
   const crossedDirection = useSharedValue(0); // -1 | 0 | 1, one haptic per crossing
 
-  // List cells can be recycled when a task changes sections; reset the
-  // gesture state so a card never stays off-screen.
+  // When THIS task changes group (completed/restored/trashed/undone), its row
+  // slides IN from the side it left through — continuity with the swipe that
+  // sent it away. A plain re-render (refetch, scroll) must NOT animate, so we
+  // compare against the previous state in a ref. Primitive `isDeleted` (not
+  // the Date object) keeps refetches from re-firing the effect.
+  const isDeleted = task.deletedAt != null;
+  const prevGroupState = useRef<{ id: number; completed: boolean; deleted: boolean } | null>(null);
   useEffect(() => {
-    translateX.value = 0;
+    const previous = prevGroupState.current;
+    prevGroupState.current = { id: task.id, completed: task.isCompleted, deleted: isDeleted };
     crossedDirection.value = 0;
-  }, [task.id, task.isCompleted, task.deletedAt, translateX, crossedDirection]);
+    const movedGroups =
+      previous !== null &&
+      previous.id === task.id &&
+      (previous.completed !== task.isCompleted || previous.deleted !== isDeleted);
+    if (movedGroups) {
+      // Into the trash = left swipe sent it away → enter from the left.
+      // Everything else exits right → enter from the right.
+      const fromDirection = isDeleted ? -1 : 1;
+      translateX.value = fromDirection * screenWidth * 0.6;
+      translateX.value = withSpring(0, SETTLE_SPRING);
+    } else {
+      translateX.value = 0;
+    }
+  }, [task.id, task.isCompleted, isDeleted, screenWidth, translateX, crossedDirection]);
 
   function thresholdHaptic(direction: number) {
     Haptics.impactAsync(
@@ -91,7 +114,7 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress }: 
           }
         );
       } else {
-        translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
+        translateX.value = withSpring(0, SETTLE_SPRING);
       }
     });
 

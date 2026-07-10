@@ -8,9 +8,10 @@ import { LayoutAnimation } from 'react-native';
 
 export function animateListChanges() {
   LayoutAnimation.configureNext({
-    duration: 300,
+    duration: 280,
     create: { type: 'easeInEaseOut', property: 'opacity', duration: 200, delay: 80 },
-    update: { type: 'spring', springDamping: 0.85 },
+    // High damping — surrounding rows settle into place quickly, no sway.
+    update: { type: 'spring', springDamping: 0.95 },
     delete: { type: 'easeInEaseOut', property: 'opacity', duration: 150 },
   });
 }

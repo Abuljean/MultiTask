@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { buildMonthMatrix, localDateKey, tasksByDay } from '@/lib/tasks/calendar';
@@ -76,6 +77,35 @@ export default function CalendarScreen() {
   }, []);
 
   const anchorIndex = monthItems.findIndex((m) => m.year === anchor.year && m.month === anchor.month);
+
+  // Month ↔ year cross-zoom (developer request): the outgoing view scales
+  // toward/away from the viewer and fades, then the incoming view arrives
+  // from the opposite scale. Year→month = zooming IN (year grows past you);
+  // month→year = zooming OUT (month shrinks away).
+  const viewScale = useSharedValue(1);
+  const viewOpacity = useSharedValue(1);
+  const zoomStyle = useAnimatedStyle(() => ({
+    opacity: viewOpacity.value,
+    transform: [{ scale: viewScale.value }],
+  }));
+
+  function switchMode(next: 'month' | 'year', zoom: 'in' | 'out', apply?: () => void) {
+    const outScale = zoom === 'in' ? 1.4 : 0.7;
+    const inScale = zoom === 'in' ? 0.7 : 1.4;
+    viewOpacity.value = withTiming(0, { duration: 150, easing: Easing.in(Easing.cubic) });
+    viewScale.value = withTiming(outScale, { duration: 150, easing: Easing.in(Easing.cubic) }, (finished) => {
+      if (!finished) return;
+      runOnJS(finishSwitch)(next, inScale, apply);
+    });
+  }
+
+  function finishSwitch(next: 'month' | 'year', inScale: number, apply?: () => void) {
+    apply?.();
+    setMode(next);
+    viewScale.value = inScale;
+    viewScale.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
+    viewOpacity.value = withTiming(1, { duration: 200 });
+  }
 
   const onViewableMonthsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0]?.item as MonthItem | undefined;
@@ -197,11 +227,12 @@ export default function CalendarScreen() {
             return (
               <Pressable
                 key={name}
-                onPress={() => {
-                  setAnchor({ year, month: m });
-                  setVisibleYear(year);
-                  setMode('month');
-                }}
+                onPress={() =>
+                  switchMode('month', 'in', () => {
+                    setAnchor({ year, month: m });
+                    setVisibleYear(year);
+                  })
+                }
                 accessibilityRole="button"
                 accessibilityLabel={`${name} ${year}, ${count} tasks`}
                 style={[
@@ -235,10 +266,11 @@ export default function CalendarScreen() {
       <View style={[styles.topBar, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
         {mode === 'month' ? (
           <Pressable
-            onPress={() => {
-              setAnchor({ year: visibleYear, month: now.getMonth() });
-              setMode('year');
-            }}
+            onPress={() =>
+              switchMode('year', 'out', () => {
+                setAnchor({ year: visibleYear, month: now.getMonth() });
+              })
+            }
             accessibilityRole="button"
             accessibilityLabel="Show year view"
             style={styles.yearButton}>
@@ -250,6 +282,7 @@ export default function CalendarScreen() {
         )}
       </View>
 
+      <Animated.View style={[styles.zoomContainer, zoomStyle]}>
       {mode === 'month' ? (
         <FlatList
           key={`months-${anchor.year}-${anchor.month}`}
@@ -282,12 +315,14 @@ export default function CalendarScreen() {
           contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
         />
       )}
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  zoomContainer: { flex: 1 },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

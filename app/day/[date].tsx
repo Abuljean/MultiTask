@@ -1,12 +1,16 @@
 // Day drill-down from the calendar: that day's tasks as the familiar
-// swipeable cards (tap to edit, swipe to complete/delete). A regular pushed
-// screen with the native back gesture — this is the "day view" the calendar
-// owns (why the recurring tab is named "Daily" instead).
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+// swipeable cards. Presented as a transparent route with a ZOOM transition
+// (developer request): the page scales up from the calendar on entry and
+// scales back down on exit. Custom header (no native back-swipe — the zoom
+// replaces the native push animation).
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
@@ -15,6 +19,7 @@ import { useTheme } from '@/lib/theme/use-theme';
 
 export default function DayScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { date } = useLocalSearchParams<{ date: string }>();
   const { colors, space, type } = useTheme();
   const { data: tasks } = useTasks();
@@ -30,21 +35,52 @@ export default function DayScreen() {
     [tasks, date]
   );
 
+  // Zoom in on entry, zoom back out on exit.
+  const scale = useSharedValue(0.85);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    scale.value = withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) });
+    opacity.value = withTiming(1, { duration: 220 });
+  }, [scale, opacity]);
+
+  const zoomStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  function goBack() {
+    router.back();
+  }
+
+  function close() {
+    scale.value = withTiming(0.85, { duration: 200, easing: Easing.in(Easing.cubic) });
+    opacity.value = withTiming(0, { duration: 200 }, (finished) => {
+      if (finished) runOnJS(goBack)();
+    });
+  }
+
   const title = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.surface }]}>
-      <Stack.Screen
-        options={{
-          title,
-          headerTintColor: colors.accent,
-          headerTitleStyle: { color: colors.textPrimary },
-          headerStyle: { backgroundColor: colors.surface },
-          headerShadowVisible: false,
-        }}
-      />
+    <Animated.View
+      style={[styles.screen, zoomStyle, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <View style={[styles.header, { paddingHorizontal: space.s4, paddingVertical: space.s2, gap: space.s2 }]}>
+        <Pressable
+          onPress={close}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Back to calendar"
+          style={styles.backButton}>
+          <IconSymbol name="chevron.left" size={20} color={colors.accent} />
+          <Text style={[type.body, { color: colors.accent, fontWeight: '600' }]}>Calendar</Text>
+        </Pressable>
+      </View>
+      <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
+        {title}
+      </Text>
       <ScrollView
-        contentContainerStyle={{ padding: space.s4, gap: space.s3 }}
+        contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3 }}
         showsVerticalScrollIndicator={false}>
         {dayTasks.length === 0 ? (
           <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
@@ -62,10 +98,19 @@ export default function DayScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
 });

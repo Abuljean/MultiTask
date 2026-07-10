@@ -10,7 +10,7 @@
 // releasing past it slides the card off (240ms ease-out) and fires.
 // Reanimated animations respect the system reduce-motion setting by default.
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -39,39 +39,40 @@ type Props = {
   onSwipeRight: (task: Task) => void;
   onSwipeLeft: (task: Task) => void;
   onPress?: (task: Task) => void;
+  /** Set by the screen when this task just moved groups: the card slides in
+   *  from that side. Works whether or not the card was mounted before (it
+   *  usually wasn't — arrivals often come from collapsed sections/undo). */
+  enterFrom?: 'left' | 'right' | null;
+  /** Called once the entrance animation has been consumed. */
+  onEntered?: (id: number) => void;
 };
 
-export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress }: Props) {
+export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, enterFrom, onEntered }: Props) {
   const { colors, radius } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const translateX = useSharedValue(0);
   const crossedDirection = useSharedValue(0); // -1 | 0 | 1, one haptic per crossing
 
-  // When THIS task changes group (completed/restored/trashed/undone), its row
-  // slides IN from the side it left through — continuity with the swipe that
-  // sent it away. A plain re-render (refetch, scroll) must NOT animate, so we
-  // compare against the previous state in a ref. Primitive `isDeleted` (not
-  // the Date object) keeps refetches from re-firing the effect.
+  // Recycle guard: if this cell re-renders for a changed task state without
+  // an entrance animation, make sure the card sits at rest. Declared BEFORE
+  // the entrance effect so that, in the same commit, the entrance wins.
+  // Primitive `isDeleted` (not the Date object) keeps refetches from
+  // re-firing this effect.
   const isDeleted = task.deletedAt != null;
-  const prevGroupState = useRef<{ id: number; completed: boolean; deleted: boolean } | null>(null);
   useEffect(() => {
-    const previous = prevGroupState.current;
-    prevGroupState.current = { id: task.id, completed: task.isCompleted, deleted: isDeleted };
+    translateX.value = 0;
     crossedDirection.value = 0;
-    const movedGroups =
-      previous !== null &&
-      previous.id === task.id &&
-      (previous.completed !== task.isCompleted || previous.deleted !== isDeleted);
-    if (movedGroups) {
-      // Into the trash = left swipe sent it away → enter from the left.
-      // Everything else exits right → enter from the right.
-      const fromDirection = isDeleted ? -1 : 1;
-      translateX.value = fromDirection * screenWidth * 0.6;
+  }, [task.id, task.isCompleted, isDeleted, translateX, crossedDirection]);
+
+  // Entrance: slide in from the side the task left through. Runs on mount or
+  // whenever the screen marks this task as freshly moved.
+  useEffect(() => {
+    if (enterFrom) {
+      translateX.value = (enterFrom === 'left' ? -1 : 1) * screenWidth * 0.6;
       translateX.value = withSpring(0, SETTLE_SPRING);
-    } else {
-      translateX.value = 0;
+      onEntered?.(task.id);
     }
-  }, [task.id, task.isCompleted, isDeleted, screenWidth, translateX, crossedDirection]);
+  }, [enterFrom, task.id, screenWidth, translateX, onEntered]);
 
   function thresholdHaptic(direction: number) {
     Haptics.impactAsync(

@@ -2,7 +2,7 @@
 // Overdue / Today / Tomorrow / Upcoming / No due date by time, Deleted
 // (collapsed trash) at the bottom. Swipeable cards, optimistic mutations,
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,8 +68,32 @@ export default function TaskListScreen() {
     return () => toast.show({ message: `Couldn’t ${what} — check your connection.` });
   }
 
+  // Entrance bookkeeping: right before a mutation moves a task to another
+  // group, note which side its card should slide in from. The card consumes
+  // the mark when it renders (it usually mounts fresh — arrivals often come
+  // out of collapsed sections or the undo toast, so the card itself can't
+  // know it "moved"). Marks expire so a task expanded into view much later
+  // doesn't randomly animate.
+  const enterMarks = useRef(new Map<number, { from: 'left' | 'right'; at: number }>());
+  function markEnter(id: number, from: 'left' | 'right') {
+    enterMarks.current.set(id, { from, at: Date.now() });
+  }
+  function getEnterFrom(id: number): 'left' | 'right' | null {
+    const mark = enterMarks.current.get(id);
+    if (!mark) return null;
+    if (Date.now() - mark.at > 1500) {
+      enterMarks.current.delete(id);
+      return null;
+    }
+    return mark.from;
+  }
+  const clearEnterMark = useCallback((id: number) => {
+    enterMarks.current.delete(id);
+  }, []);
+
   function handleSwipeRight(task: Task) {
     animateListChanges();
+    markEnter(task.id, 'right');
     if (task.deletedAt) {
       restoreTask.mutate(task.id, { onError: showError('restore the task') });
     } else if (task.isCompleted) {
@@ -80,6 +104,7 @@ export default function TaskListScreen() {
         message: 'Task completed.',
         onUndo: () => {
           animateListChanges();
+          markEnter(task.id, 'right');
           setCompleted.mutate({ id: task.id, isCompleted: false }, { onError: showError('update the task') });
         },
       });
@@ -92,11 +117,13 @@ export default function TaskListScreen() {
       permanentlyDelete.mutate(task.id, { onError: showError('delete the task') });
       toast.show({ message: 'Task permanently deleted.' });
     } else {
+      markEnter(task.id, 'left'); // it enters the trash leftward
       deleteTask.mutate(task.id, { onError: showError('delete the task') });
       toast.show({
         message: 'Task deleted.',
         onUndo: () => {
           animateListChanges();
+          markEnter(task.id, 'right');
           restoreTask.mutate(task.id, { onError: showError('restore the task') });
         },
       });
@@ -167,7 +194,13 @@ export default function TaskListScreen() {
             )
           }
           renderItem={({ item: task }) => (
-            <SwipeableTaskCard task={task} onSwipeRight={handleSwipeRight} onSwipeLeft={handleSwipeLeft} />
+            <SwipeableTaskCard
+              task={task}
+              onSwipeRight={handleSwipeRight}
+              onSwipeLeft={handleSwipeLeft}
+              enterFrom={getEnterFrom(task.id)}
+              onEntered={clearEnterMark}
+            />
           )}
           ItemSeparatorComponent={() => <View style={{ height: space.s3 }} />}
           SectionSeparatorComponent={() => <View style={{ height: space.s2 }} />}

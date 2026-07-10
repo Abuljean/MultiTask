@@ -5,7 +5,7 @@
 
 import type { Task } from './types';
 
-export type SectionKey = 'overdue' | 'today' | 'tomorrow' | 'later' | 'noDueDate' | 'completed';
+export type SectionKey = 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'noDueDate' | 'completed';
 
 export type TaskSection = {
   key: SectionKey;
@@ -17,7 +17,7 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   overdue: 'Overdue',
   today: 'Today',
   tomorrow: 'Tomorrow',
-  later: 'Later',
+  upcoming: 'Upcoming',
   noDueDate: 'No due date',
   completed: 'Completed',
 };
@@ -42,7 +42,7 @@ export function groupTasks(tasks: Task[], now: Date = new Date()): TaskSection[]
     overdue: [],
     today: [],
     tomorrow: [],
-    later: [],
+    upcoming: [],
     noDueDate: [],
     completed: [],
   };
@@ -57,10 +57,12 @@ export function groupTasks(tasks: Task[], now: Date = new Date()): TaskSection[]
     else if (task.dueDate.getTime() < now.getTime()) buckets.overdue.push(task);
     else if (task.dueDate.getTime() < tomorrowStart.getTime()) buckets.today.push(task);
     else if (task.dueDate.getTime() < dayAfterStart.getTime()) buckets.tomorrow.push(task);
-    else buckets.later.push(task);
+    else buckets.upcoming.push(task);
   }
 
-  const order: SectionKey[] = ['overdue', 'today', 'tomorrow', 'later', 'noDueDate', 'completed'];
+  // Completed sits at the TOP (collapsed by default in the UI) so the active
+  // list below reads strictly by time — developer decision, 2026-07-09.
+  const order: SectionKey[] = ['completed', 'overdue', 'today', 'tomorrow', 'upcoming', 'noDueDate'];
   return order
     .filter((key) => buckets[key].length > 0)
     .map((key) => ({

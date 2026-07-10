@@ -23,6 +23,8 @@ const MAPPING = {
   checkmark: 'check',
   'arrow.uturn.backward': 'undo',
   'exclamationmark.triangle.fill': 'warning',
+  'trash.fill': 'delete',
+  'chevron.down': 'keyboard-arrow-down',
 } as IconMapping;
 
 /**

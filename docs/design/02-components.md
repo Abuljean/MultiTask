@@ -28,7 +28,12 @@ The most-touched component. Every property is deliberate.
 - Third row (optional, only if present): description preview (1 line, tertiary text)
 - Bottom row: category pill + subject pill + priority tier badge, small size
 
-> **Resolved (2026-07-09, first implementation):** the priority tier badge appears in the *top row only* (before the title), not duplicated in the bottom pill row — one status, one place. Default-status cards use `surface-elevated` + 1px `border-subtle` on the `surface` screen background (per the 03 file's "surface-elevated — cards"; the light-mode `surface` entry in the table above was superseded because same-on-same needs no border to fail). Due dates render in JetBrains Mono at caption size.
+> **Resolved (2026-07-09, developer decisions after seeing the first build):**
+> - The priority tier badge lives in the **bottom pill row, first position** (most important pill). Not in the title row.
+> - **No visible complete button on the card.** Swipe right = complete (or restore when already completed), swipe left = delete — Mail-style, with colored trail + icon. Screen readers get equivalent `accessibilityActions` (complete/delete) on the card, satisfying the "gesture needs a non-gesture alternative" rule.
+> - **Description is not shown on the card** — it lives in the task detail view only. Cards are title + due date + pills.
+> - Default-status cards use `surface-elevated` + 1px `border-subtle` on the `surface` screen background. Due dates render in JetBrains Mono at caption size.
+> - All complete/delete/undo mutations are **optimistic** — zero perceived wait; rollback on server error.
 
 **Sizing:**
 - Radius: `radius.card` (16)

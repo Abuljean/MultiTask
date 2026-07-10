@@ -35,12 +35,12 @@ describe('groupTasks', () => {
       NOW
     );
     expect(sections.map((s) => [s.key, s.data.map((t) => t.title)])).toEqual([
+      ['completed', ['done']],
       ['overdue', ['overdue']],
       ['today', ['today']],
       ['tomorrow', ['tomorrow']],
-      ['later', ['later']],
+      ['upcoming', ['later']],
       ['noDueDate', ['dateless']],
-      ['completed', ['done']],
     ]);
   });
 

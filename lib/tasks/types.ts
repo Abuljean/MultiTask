@@ -76,6 +76,25 @@ export type NewTask = {
   priority?: number | null;
 };
 
+/** Rebuilds an insert payload from a full Task — used by undo-after-delete.
+ *  The task gets a NEW id (ids are never user-visible, so that's fine), but
+ *  every other field survives, including the original creation date. */
+export function toRestoreRow(task: Task, userUuid: string): Partial<TaskRow> {
+  return {
+    user_uuid: userUuid,
+    title: task.title,
+    description: task.description,
+    creation_date: task.createdAt.toISOString(),
+    due_date: task.dueDate ? formatWallClock(task.dueDate) : null,
+    is_completed: task.isCompleted,
+    subject: task.subject,
+    subject_color: task.subjectColor,
+    category: task.category,
+    category_color: task.categoryColor,
+    priority: task.priority,
+  };
+}
+
 export function toInsertRow(input: NewTask, userUuid: string): Partial<TaskRow> {
   return {
     user_uuid: userUuid,

@@ -176,7 +176,8 @@ Dark mode is not "invert the light theme." Every color pair has to be re-verifie
 
 ### Mobile task list
 - Single column, `space.4` (16) side padding, `space.3` (12) between cards
-- Sticky section headers (Today / Tomorrow / Later / No due date) styled as h2, `text-secondary`
+- Sticky section headers (Completed / Overdue / Today / Tomorrow / Upcoming / No due date) styled as h2, `text-secondary`
+- **Resolved (2026-07-09):** the **Completed group sits at the TOP of the list, collapsed by default**, with a count and chevron; expanded/collapsed state persists across launches. This keeps the active list below reading strictly by time. Section wording is "Upcoming" (not "Later").
 - Pull-to-refresh triggers a re-sync (visible only when actually syncing something)
 - FAB (quick-add) bottom-right on iOS, bottom-center or bottom-right on Android per M3 conventions
 

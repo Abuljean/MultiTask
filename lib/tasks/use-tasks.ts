@@ -1,18 +1,17 @@
-// Task data access. TanStack Query owns caching and refetching; Supabase is
-// the transport. Every screen goes through these hooks — nothing else in the
-// app talks to the `task` table directly. That boundary is deliberate: when
-// offline sync lands (Stage 3), the local database slots in behind these
-// hooks and screens don't change.
+// Task data access. TanStack Query owns caching; Supabase is the transport.
+// Every screen goes through these hooks — nothing else talks to the `task`
+// table. When offline sync lands (Stage 3), the local database slots in
+// behind these hooks and screens don't change.
 //
-// NOTE: mutations currently invalidate-and-refetch, which needs a network
-// round trip. The optimistic-update pass (docs/design/04: every action
-// commits locally, instantly) comes with the real UI — no point polishing
-// perceived latency on a debug screen.
+// Mutations are OPTIMISTIC (docs/design/04: every action commits locally,
+// instantly). The pattern for each: cancel in-flight refetches → snapshot the
+// cache → apply the change to the cache immediately → roll back on error →
+// re-sync with the server when the dust settles.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
-import { toInsertRow, toTask, type NewTask, type Task, type TaskRow } from './types';
+import { toInsertRow, toRestoreRow, toTask, type NewTask, type Task, type TaskRow } from './types';
 
 const TASKS_KEY = ['tasks'] as const;
 
@@ -21,8 +20,8 @@ export function useTasks() {
 }
 
 async function fetchTasks(): Promise<Task[]> {
-  // RLS scopes this to the signed-in user's rows — no .eq('user_uuid', ...)
-  // filter needed, and none COULD leak other users' data even if forgotten.
+  // RLS scopes this to the signed-in user's rows — no client-side filter
+  // needed, and none COULD leak other users' data even if forgotten.
   const { data, error } = await supabase
     .from('task')
     .select('*')
@@ -31,15 +30,37 @@ async function fetchTasks(): Promise<Task[]> {
   return (data as TaskRow[]).map(toTask);
 }
 
+/** Shared optimistic-update boilerplate: snapshot, apply, and hand back the
+ *  snapshot for rollback. */
+async function applyOptimistic(
+  queryClient: QueryClient,
+  update: (tasks: Task[]) => Task[]
+): Promise<{ previous: Task[] | undefined }> {
+  await queryClient.cancelQueries({ queryKey: TASKS_KEY });
+  const previous = queryClient.getQueryData<Task[]>(TASKS_KEY);
+  queryClient.setQueryData<Task[]>(TASKS_KEY, (old) => update(old ?? []));
+  return { previous };
+}
+
+function rollback(queryClient: QueryClient, context?: { previous: Task[] | undefined }) {
+  if (context?.previous) {
+    queryClient.setQueryData(TASKS_KEY, context.previous);
+  }
+}
+
+async function currentUserUuid(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const uuid = data.session?.user.id;
+  if (!uuid) throw new Error('Not signed in');
+  return uuid;
+}
+
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: NewTask) => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userUuid = sessionData.session?.user.id;
-      if (!userUuid) throw new Error('Not signed in');
-      // RLS's WITH CHECK verifies user_uuid === auth.uid() server-side;
-      // sending anyone else's uuid would be rejected by the database.
+      const userUuid = await currentUserUuid();
+      // RLS's WITH CHECK verifies user_uuid === auth.uid() server-side.
       const { data, error } = await supabase
         .from('task')
         .insert(toInsertRow(input, userUuid))
@@ -48,7 +69,7 @@ export function useCreateTask() {
       if (error) throw error;
       return toTask(data as TaskRow);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }
 
@@ -59,7 +80,10 @@ export function useSetTaskCompleted() {
       const { error } = await supabase.from('task').update({ is_completed: isCompleted }).eq('task_id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onMutate: ({ id, isCompleted }) =>
+      applyOptimistic(queryClient, (tasks) => tasks.map((t) => (t.id === id ? { ...t, isCompleted } : t))),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }
 
@@ -70,6 +94,30 @@ export function useDeleteTask() {
       const { error } = await supabase.from('task').delete().eq('task_id', id);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onMutate: (id) => applyOptimistic(queryClient, (tasks) => tasks.filter((t) => t.id !== id)),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** Undo-after-delete: re-inserts the task with all its original fields (new
+ *  id — ids aren't user-visible). Optimistically shows the old task at once;
+ *  the refetch swaps in the server's row. */
+export function useRestoreTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (task: Task) => {
+      const userUuid = await currentUserUuid();
+      const { data, error } = await supabase
+        .from('task')
+        .insert(toRestoreRow(task, userUuid))
+        .select()
+        .single();
+      if (error) throw error;
+      return toTask(data as TaskRow);
+    },
+    onMutate: (task) => applyOptimistic(queryClient, (tasks) => [...tasks, task]),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }

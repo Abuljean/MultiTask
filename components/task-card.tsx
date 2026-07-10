@@ -1,9 +1,10 @@
 // The task card — the most-touched component in the app (docs/design/02).
-// Anatomy: left status accent bar · priority badge + title + action button ·
-// due date (mono, with warning icon when overdue) · description preview ·
-// category/subject pills. Title + due date are ALWAYS visible; everything
-// else is subordinate. No drop shadow — cards separate from the background
-// by border + surface contrast (anti-generic rule 6).
+// Anatomy: left status accent bar · title · due date (mono, warning icon when
+// overdue) · pills (priority first, then category, then subject). Title + due
+// date are ALWAYS visible. Description lives in the detail view, not here.
+// Complete/delete are swipe gestures (see swipeable-task-card.tsx); the card
+// exposes the same actions to screen readers via accessibilityActions.
+// No drop shadow — cards separate by border + surface contrast.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Pill, PriorityBadge } from '@/components/pill';
@@ -15,12 +16,13 @@ import { useTheme, type Theme } from '@/lib/theme/use-theme';
 
 type Props = {
   task: Task;
-  onToggleComplete: (task: Task) => void;
+  onToggleComplete?: (task: Task) => void;
+  onDelete?: (task: Task) => void;
   onPress?: (task: Task) => void;
   onLongPress?: (task: Task) => void;
 };
 
-export function TaskCard({ task, onToggleComplete, onPress, onLongPress }: Props) {
+export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPress }: Props) {
   const theme = useTheme();
   const { colors, space, radius, type, monoFont } = theme;
   const status = deriveStatus(task);
@@ -34,6 +36,16 @@ export function TaskCard({ task, onToggleComplete, onPress, onLongPress }: Props
       accessibilityRole="button"
       accessibilityLabel={`Task: ${task.title}`}
       accessibilityState={{ checked: task.isCompleted }}
+      // Swipe gestures need a non-gesture equivalent for assistive tech
+      // (docs/design/04 accessibility rules).
+      accessibilityActions={[
+        { name: 'complete', label: task.isCompleted ? 'Mark as not completed' : 'Mark as completed' },
+        { name: 'delete', label: 'Delete task' },
+      ]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'complete') onToggleComplete?.(task);
+        if (event.nativeEvent.actionName === 'delete') onDelete?.(task);
+      }}
       style={[
         styles.card,
         {
@@ -47,37 +59,11 @@ export function TaskCard({ task, onToggleComplete, onPress, onLongPress }: Props
       {accentBar && <View style={[styles.accentBar, { backgroundColor: accentBar }]} />}
 
       <View style={styles.content}>
-        <View style={[styles.titleRow, { gap: space.s2 }]}>
-          {task.priority != null && <PriorityBadge priority={task.priority} />}
-          <Text
-            numberOfLines={2}
-            style={[
-              type.h2,
-              styles.title,
-              { color: colors.textPrimary },
-              task.isCompleted && styles.titleCompleted,
-            ]}>
-            {task.title}
-          </Text>
-          <Pressable
-            onPress={() => onToggleComplete(task)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={task.isCompleted ? 'Mark as not completed' : 'Mark as completed'}
-            style={({ pressed }) => [
-              styles.actionButton,
-              {
-                borderColor: pressed ? colors.accent : colors.borderSubtle,
-                backgroundColor: pressed ? colors.accentMuted : 'transparent',
-              },
-            ]}>
-            <IconSymbol
-              name={task.isCompleted ? 'arrow.uturn.backward' : 'checkmark'}
-              size={16}
-              color={colors.textTertiary}
-            />
-          </Pressable>
-        </View>
+        <Text
+          numberOfLines={2}
+          style={[type.h2, { color: colors.textPrimary }, task.isCompleted && styles.titleCompleted]}>
+          {task.title}
+        </Text>
 
         <View style={[styles.dueRow, { gap: space.s1 }]}>
           {status === 'overdue' && (
@@ -94,13 +80,8 @@ export function TaskCard({ task, onToggleComplete, onPress, onLongPress }: Props
           </Text>
         </View>
 
-        {task.description.length > 0 && (
-          <Text numberOfLines={1} style={[styles.description, { color: colors.textTertiary }]}>
-            {task.description}
-          </Text>
-        )}
-
         <View style={[styles.pillRow, { gap: space.s2, marginTop: space.s2 }]}>
+          {task.priority != null && <PriorityBadge priority={task.priority} />}
           <Pill label={task.category} color={task.categoryColor} />
           {task.subject.length > 0 && <Pill label={task.subject} color={task.subjectColor} />}
         </View>
@@ -110,8 +91,8 @@ export function TaskCard({ task, onToggleComplete, onPress, onLongPress }: Props
 }
 
 // Status → card surface + accent bar color (the sacred four, plus completed).
-// Redundant encoding per WCAG 1.4.1: status is never color-alone — the accent
-// bar, the overdue warning icon, and the completed strikethrough all repeat it.
+// Redundant encoding per WCAG 1.4.1: the accent bar, overdue warning icon,
+// and completed strikethrough repeat what color says.
 function statusSurfaces(theme: Theme) {
   const { colors } = theme;
   return {
@@ -138,35 +119,16 @@ const styles = StyleSheet.create({
   content: {
     gap: 4,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  title: {
-    flex: 1,
-  },
   titleCompleted: {
     textDecorationLine: 'line-through',
-  },
-  actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   dueRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  description: {
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: '400',
-  },
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'center',
   },
 });

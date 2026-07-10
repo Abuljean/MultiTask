@@ -99,36 +99,38 @@ export default function CalendarScreen() {
     const isToday = key === todayKey;
     const hasOverdue = dayTasks.some((t) => deriveStatus(t) === 'overdue');
     return (
-      <Pressable
-        key={key}
-        onPress={() => router.push({ pathname: '/day/[date]', params: { date: key } })}
-        accessibilityRole="button"
-        accessibilityLabel={`${date.toDateString()}, ${dayTasks.length} tasks`}
-        style={[
-          styles.dayCell,
-          { borderColor: colors.borderSubtle },
-          hasOverdue && { backgroundColor: colors.statusOverdueBg },
-        ]}>
-        <View style={[styles.dayNumberWrap, isToday && { backgroundColor: colors.accent, borderRadius: 999 }]}>
-          <Text
-            style={{
-              fontSize: 15,
-              lineHeight: 20,
-              fontWeight: isToday ? '600' : '500',
-              color: isToday ? colors.textOnAccent : colors.textPrimary,
-            }}>
-            {date.getDate()}
-          </Text>
-        </View>
-        <View style={styles.dotRow}>
-          {dayTasks.slice(0, 3).map((t) => (
-            <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
-          ))}
-          {dayTasks.length > 3 && (
-            <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
-          )}
-        </View>
-      </Pressable>
+      <View key={key} style={styles.dayCell}>
+        {/* Grey tile per day (developer pick) — days read as distinct
+            targets; overdue days tint red on top of that. */}
+        <Pressable
+          onPress={() => router.push({ pathname: '/day/[date]', params: { date: key } })}
+          accessibilityRole="button"
+          accessibilityLabel={`${date.toDateString()}, ${dayTasks.length} tasks`}
+          style={[
+            styles.dayTile,
+            { backgroundColor: hasOverdue ? colors.statusOverdueBg : colors.surfaceSunken },
+          ]}>
+          <View style={[styles.dayNumberWrap, isToday && { backgroundColor: colors.accent, borderRadius: 999 }]}>
+            <Text
+              style={{
+                fontSize: 15,
+                lineHeight: 20,
+                fontWeight: isToday ? '600' : '500',
+                color: isToday ? colors.textOnAccent : colors.textPrimary,
+              }}>
+              {date.getDate()}
+            </Text>
+          </View>
+          <View style={styles.dotRow}>
+            {dayTasks.slice(0, 3).map((t) => (
+              <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
+            ))}
+            {dayTasks.length > 3 && (
+              <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
+            )}
+          </View>
+        </Pressable>
+      </View>
     );
   }
 
@@ -201,9 +203,9 @@ export default function CalendarScreen() {
                   styles.monthBlock,
                   {
                     height: YEAR_BLOCK_HEIGHT,
-                    backgroundColor: colors.surfaceElevated,
-                    borderColor: isCurrent ? colors.accent : colors.borderSubtle,
-                    borderWidth: isCurrent ? 1.5 : 1,
+                    backgroundColor: colors.surfaceSunken,
+                    borderColor: isCurrent ? colors.accent : 'transparent',
+                    borderWidth: 1.5,
                     padding: space.s3,
                   },
                 ]}>
@@ -296,10 +298,13 @@ const styles = StyleSheet.create({
   dayCell: {
     flex: 1,
     height: DAY_CELL_HEIGHT,
+    padding: 1.5, // gap between tiles without changing row geometry
+  },
+  dayTile: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: 6,
+    paddingTop: 5,
     gap: 4,
-    borderTopWidth: StyleSheet.hairlineWidth,
     borderRadius: 8,
   },
   dayNumberWrap: {

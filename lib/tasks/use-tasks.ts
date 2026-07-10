@@ -11,7 +11,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
-import { toInsertRow, toRestoreRow, toTask, type NewTask, type Task, type TaskRow } from './types';
+import { toInsertRow, toTask, type NewTask, type Task, type TaskRow } from './types';
 
 const TASKS_KEY = ['tasks'] as const;
 
@@ -87,7 +87,45 @@ export function useSetTaskCompleted() {
   });
 }
 
+/** Soft delete: moves the task to the trash ("Deleted" section) by setting
+ *  deleted_at. The row survives, so undo/restore is a trivial flip back —
+ *  same id, nothing lost. Requires supabase/04-soft-delete.sql. */
 export function useDeleteTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase
+        .from('task')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('task_id', id);
+      if (error) throw error;
+    },
+    onMutate: (id) =>
+      applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) => (t.id === id ? { ...t, deletedAt: new Date() } : t))
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** Restore from trash (undo toast, or swipe-right in the Deleted section). */
+export function useRestoreTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase.from('task').update({ deleted_at: null }).eq('task_id', id);
+      if (error) throw error;
+    },
+    onMutate: (id) =>
+      applyOptimistic(queryClient, (tasks) => tasks.map((t) => (t.id === id ? { ...t, deletedAt: null } : t))),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+  });
+}
+
+/** The real DELETE — only reachable from the Deleted section. Irreversible. */
+export function usePermanentlyDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
@@ -95,28 +133,6 @@ export function useDeleteTask() {
       if (error) throw error;
     },
     onMutate: (id) => applyOptimistic(queryClient, (tasks) => tasks.filter((t) => t.id !== id)),
-    onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
-  });
-}
-
-/** Undo-after-delete: re-inserts the task with all its original fields (new
- *  id — ids aren't user-visible). Optimistically shows the old task at once;
- *  the refetch swaps in the server's row. */
-export function useRestoreTask() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (task: Task) => {
-      const userUuid = await currentUserUuid();
-      const { data, error } = await supabase
-        .from('task')
-        .insert(toRestoreRow(task, userUuid))
-        .select()
-        .single();
-      if (error) throw error;
-      return toTask(data as TaskRow);
-    },
-    onMutate: (task) => applyOptimistic(queryClient, (tasks) => [...tasks, task]),
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });

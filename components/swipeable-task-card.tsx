@@ -1,14 +1,17 @@
-// Mail-style swipeable wrapper around TaskCard (docs/design/04):
-//   swipe RIGHT → complete (green trail, check icon) — or restore, if the
-//                 task is already completed (accent trail, undo icon)
-//   swipe LEFT  → delete (red trail, trash icon)
-// Below 40% of screen width the card springs back; crossing 40% ticks a
-// haptic; releasing past it slides the card off-screen (240ms ease-out) and
-// fires the action. The trail is a solid status color, never a gradient.
+// Mail-style swipeable wrapper around TaskCard (docs/design/04).
+// What a swipe MEANS depends on where the task is:
+//   live task:      right = complete (green trail, check) · left = delete (red, trash)
+//   completed task: right = restore  (accent trail, undo) · left = delete (red, trash)
+//   trashed task:   right = restore  (accent trail, undo) · left = PERMANENT delete (red, trash)
+// The screen decides what actually happens via onSwipeRight/onSwipeLeft; this
+// component only owns the physics and the trail visuals.
+// Threshold is 30% of screen width (toned down from 40% per developer
+// feedback): below it the card springs back, crossing it ticks a haptic,
+// releasing past it slides the card off (240ms ease-out) and fires.
 // Reanimated animations respect the system reduce-motion setting by default.
 import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
-import { LayoutAnimation, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -25,28 +28,27 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Task } from '@/lib/tasks/types';
 import { useTheme } from '@/lib/theme/use-theme';
 
-const THRESHOLD_FRACTION = 0.4;
+const THRESHOLD_FRACTION = 0.3;
 
 type Props = {
   task: Task;
-  onComplete: (task: Task) => void;
-  onUncomplete: (task: Task) => void;
-  onDelete: (task: Task) => void;
+  onSwipeRight: (task: Task) => void;
+  onSwipeLeft: (task: Task) => void;
   onPress?: (task: Task) => void;
 };
 
-export function SwipeableTaskCard({ task, onComplete, onUncomplete, onDelete, onPress }: Props) {
+export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress }: Props) {
   const { colors, radius } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const translateX = useSharedValue(0);
-  const crossedDirection = useSharedValue(0); // -1 | 0 | 1, for one haptic per crossing
+  const crossedDirection = useSharedValue(0); // -1 | 0 | 1, one haptic per crossing
 
-  // List cells can be recycled when a task changes sections (e.g. after
-  // completing); reset the gesture state so the card never stays off-screen.
+  // List cells can be recycled when a task changes sections; reset the
+  // gesture state so a card never stays off-screen.
   useEffect(() => {
     translateX.value = 0;
     crossedDirection.value = 0;
-  }, [task.id, task.isCompleted, translateX, crossedDirection]);
+  }, [task.id, task.isCompleted, task.deletedAt, translateX, crossedDirection]);
 
   function thresholdHaptic(direction: number) {
     Haptics.impactAsync(
@@ -55,15 +57,12 @@ export function SwipeableTaskCard({ task, onComplete, onUncomplete, onDelete, on
   }
 
   function fire(direction: number) {
-    // Let the surrounding list animate the gap closing when the row leaves.
-    LayoutAnimation.configureNext(LayoutAnimation.create(200, 'easeInEaseOut', 'opacity'));
     if (direction > 0) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      if (task.isCompleted) onUncomplete(task);
-      else onComplete(task);
+      onSwipeRight(task);
     } else {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      onDelete(task);
+      onSwipeLeft(task);
     }
   }
 
@@ -105,9 +104,9 @@ export function SwipeableTaskCard({ task, onComplete, onUncomplete, onDelete, on
     opacity: translateX.value > 0 ? 1 : 0,
   }));
   const rightIconStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [0, screenWidth * 0.12], [0, 1], 'clamp'),
+    opacity: interpolate(translateX.value, [0, screenWidth * 0.1], [0, 1], 'clamp'),
     transform: [
-      { scale: interpolate(translateX.value, [0, screenWidth * THRESHOLD_FRACTION], [0.6, 1], 'clamp') },
+      { scale: interpolate(translateX.value, [0, screenWidth * THRESHOLD_FRACTION], [0.85, 1], 'clamp') },
     ],
   }));
 
@@ -116,22 +115,24 @@ export function SwipeableTaskCard({ task, onComplete, onUncomplete, onDelete, on
     opacity: translateX.value < 0 ? 1 : 0,
   }));
   const leftIconStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(-translateX.value, [0, screenWidth * 0.12], [0, 1], 'clamp'),
+    opacity: interpolate(-translateX.value, [0, screenWidth * 0.1], [0, 1], 'clamp'),
     transform: [
-      { scale: interpolate(-translateX.value, [0, screenWidth * THRESHOLD_FRACTION], [0.6, 1], 'clamp') },
+      { scale: interpolate(-translateX.value, [0, screenWidth * THRESHOLD_FRACTION], [0.85, 1], 'clamp') },
     ],
   }));
 
-  const completeTrailColor = task.isCompleted ? colors.accent : colors.statusOngoingAccent;
+  // Right swipe = complete for live tasks, restore for completed/trashed ones.
+  const rightIsRestore = task.isCompleted || task.deletedAt != null;
+  const rightTrailColor = rightIsRestore ? colors.accent : colors.statusOngoingAccent;
 
   return (
     <GestureDetector gesture={pan}>
       <View>
         <Animated.View
-          style={[styles.trail, { backgroundColor: completeTrailColor, borderRadius: radius.card }, rightTrailStyle]}>
+          style={[styles.trail, { backgroundColor: rightTrailColor, borderRadius: radius.card }, rightTrailStyle]}>
           <Animated.View style={[styles.trailIconLeft, rightIconStyle]}>
             <IconSymbol
-              name={task.isCompleted ? 'arrow.uturn.backward' : 'checkmark'}
+              name={rightIsRestore ? 'arrow.uturn.backward' : 'checkmark'}
               size={22}
               color={colors.textOnAccent}
             />
@@ -148,12 +149,7 @@ export function SwipeableTaskCard({ task, onComplete, onUncomplete, onDelete, on
           </Animated.View>
         </Animated.View>
         <Animated.View style={cardStyle}>
-          <TaskCard
-            task={task}
-            onPress={onPress}
-            onToggleComplete={(t) => (t.isCompleted ? onUncomplete(t) : onComplete(t))}
-            onDelete={onDelete}
-          />
+          <TaskCard task={task} onPress={onPress} onToggleComplete={onSwipeRight} onDelete={onSwipeLeft} />
         </Animated.View>
       </View>
     </GestureDetector>

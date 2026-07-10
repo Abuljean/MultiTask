@@ -24,6 +24,8 @@ export type TaskRow = {
   category: string | null;
   category_color: string | null;
   priority: number | null;
+  /** Soft-delete timestamp (trash). null/absent = live task. */
+  deleted_at?: string | null;
 };
 
 export type Task = {
@@ -40,6 +42,8 @@ export type Task = {
   categoryColor: string;
   /** Priority rank: 1 = "1st", 2 = "2nd", 3 = "3rd"; null = no priority. */
   priority: number | null;
+  /** When non-null, the task is in the trash ("Deleted" section). */
+  deletedAt: Date | null;
 };
 
 // Defaults mirror Task.java so both apps agree on what "unset" looks like.
@@ -60,6 +64,7 @@ export function toTask(row: TaskRow): Task {
     category: row.category ?? DEFAULT_CATEGORY,
     categoryColor: row.category_color ?? DEFAULT_CATEGORY_COLOR,
     priority: row.priority,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
   };
 }
 
@@ -75,25 +80,6 @@ export type NewTask = {
   subjectColor?: string;
   priority?: number | null;
 };
-
-/** Rebuilds an insert payload from a full Task — used by undo-after-delete.
- *  The task gets a NEW id (ids are never user-visible, so that's fine), but
- *  every other field survives, including the original creation date. */
-export function toRestoreRow(task: Task, userUuid: string): Partial<TaskRow> {
-  return {
-    user_uuid: userUuid,
-    title: task.title,
-    description: task.description,
-    creation_date: task.createdAt.toISOString(),
-    due_date: task.dueDate ? formatWallClock(task.dueDate) : null,
-    is_completed: task.isCompleted,
-    subject: task.subject,
-    subject_color: task.subjectColor,
-    category: task.category,
-    category_color: task.categoryColor,
-    priority: task.priority,
-  };
-}
 
 export function toInsertRow(input: NewTask, userUuid: string): Partial<TaskRow> {
   return {

@@ -39,8 +39,15 @@ export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPres
       // Swipe gestures need a non-gesture equivalent for assistive tech
       // (docs/design/04 accessibility rules).
       accessibilityActions={[
-        { name: 'complete', label: task.isCompleted ? 'Mark as not completed' : 'Mark as completed' },
-        { name: 'delete', label: 'Delete task' },
+        {
+          name: 'complete',
+          label: task.deletedAt
+            ? 'Restore task'
+            : task.isCompleted
+              ? 'Mark as not completed'
+              : 'Mark as completed',
+        },
+        { name: 'delete', label: task.deletedAt ? 'Delete permanently' : 'Delete task' },
       ]}
       onAccessibilityAction={(event) => {
         if (event.nativeEvent.actionName === 'complete') onToggleComplete?.(task);
@@ -53,7 +60,7 @@ export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPres
           borderColor: colors.borderSubtle,
           borderRadius: radius.card,
           padding: space.s4,
-          opacity: task.isCompleted ? 0.6 : 1,
+          opacity: task.isCompleted || task.deletedAt ? 0.6 : 1,
         },
       ]}>
       {accentBar && <View style={[styles.accentBar, { backgroundColor: accentBar }]} />}

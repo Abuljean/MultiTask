@@ -178,6 +178,8 @@ Dark mode is not "invert the light theme." Every color pair has to be re-verifie
 - Single column, `space.4` (16) side padding, `space.3` (12) between cards
 - Sticky section headers (Completed / Overdue / Today / Tomorrow / Upcoming / No due date) styled as h2, `text-secondary`
 - **Resolved (2026-07-09):** the **Completed group sits at the TOP of the list, collapsed by default**, with a count and chevron; expanded/collapsed state persists across launches. This keeps the active list below reading strictly by time. Section wording is "Upcoming" (not "Later").
+- **Resolved (2026-07-10):** deletion is a **soft delete into a "Deleted" (trash) section at the BOTTOM of the list**, collapsed by default, persisted like Completed. Swipe right there = restore, swipe left = permanent delete (no undo — it's already the second step). Backed by a `deleted_at` column (supabase/04); trash syncs across devices. Known tradeoff: the legacy Vaadin web app shows soft-deleted tasks until the web redesign.
+- **Resolved (2026-07-10, motion):** every list regroup (complete, restore, undo, collapse) runs through one shared LayoutAnimation (spring position updates, delayed fade-in for arrivals) — tasks visibly glide into their new group. The pull-to-refresh spinner appears ONLY on a physical pull; background refetches after mutations are invisible. Swipe commit threshold is 30% of screen width (40% felt cartoonish).
 - Pull-to-refresh triggers a re-sync (visible only when actually syncing something)
 - FAB (quick-add) bottom-right on iOS, bottom-center or bottom-right on Android per M3 conventions
 

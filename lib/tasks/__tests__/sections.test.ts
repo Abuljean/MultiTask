@@ -17,6 +17,7 @@ function task(overrides: Partial<Task>): Task {
     category: 'Uncategorized',
     categoryColor: '#fef3c7',
     priority: null,
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -31,6 +32,7 @@ describe('groupTasks', () => {
         task({ title: 'later', dueDate: new Date(2026, 6, 20, 9, 0) }),
         task({ title: 'dateless' }),
         task({ title: 'done', dueDate: new Date(2026, 6, 15, 9, 0), isCompleted: true }),
+        task({ title: 'trashed', dueDate: new Date(2026, 6, 15, 18, 0), deletedAt: NOW }),
       ],
       NOW
     );
@@ -41,7 +43,17 @@ describe('groupTasks', () => {
       ['tomorrow', ['tomorrow']],
       ['upcoming', ['later']],
       ['noDueDate', ['dateless']],
+      ['deleted', ['trashed']],
     ]);
+  });
+
+  test('deleted wins over completed and overdue (trash is trash)', () => {
+    const sections = groupTasks(
+      [task({ dueDate: new Date(2026, 6, 1), isCompleted: true, deletedAt: NOW })],
+      NOW
+    );
+    expect(sections).toHaveLength(1);
+    expect(sections[0].key).toBe('deleted');
   });
 
   test('completed wins over overdue (a done task is never in Overdue)', () => {

@@ -1,58 +1,126 @@
-// The task list — the app's landing screen. Sections per docs/design/03
-// (Completed collapsed at top, then Overdue / Today / Tomorrow / Upcoming /
-// No due date), swipeable TaskCards, optimistic mutations, undo toasts.
-// Quick-add FAB arrives in the next slice.
-import { useMemo } from 'react';
-import { LayoutAnimation, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+// The task list — the app's landing screen. Completed (collapsed) at top,
+// Overdue / Today / Tomorrow / Upcoming / No due date by time, Deleted
+// (collapsed trash) at the bottom. Swipeable cards, optimistic mutations,
+// undo toasts, spring regroup animations. Quick-add FAB is the next slice.
+import { useMemo, useState } from 'react';
+import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
-import { useCompletedCollapsed } from '@/hooks/use-completed-collapsed';
-import { groupTasks } from '@/lib/tasks/sections';
+import { useCollapsedSection } from '@/hooks/use-collapsed-section';
+import { animateListChanges } from '@/lib/animate-layout';
+import { groupTasks, type SectionKey } from '@/lib/tasks/sections';
 import type { Task } from '@/lib/tasks/types';
-import { useDeleteTask, useRestoreTask, useSetTaskCompleted, useTasks } from '@/lib/tasks/use-tasks';
+import {
+  useDeleteTask,
+  usePermanentlyDeleteTask,
+  useRestoreTask,
+  useSetTaskCompleted,
+  useTasks,
+} from '@/lib/tasks/use-tasks';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TaskListScreen() {
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
-  const { data: tasks, isLoading, error, refetch, isRefetching } = useTasks();
+  const { data: tasks, isLoading, error, refetch } = useTasks();
   const setCompleted = useSetTaskCompleted();
   const deleteTask = useDeleteTask();
   const restoreTask = useRestoreTask();
+  const permanentlyDelete = usePermanentlyDeleteTask();
   const toast = useUndoToast();
-  const [completedCollapsed, toggleCompleted] = useCompletedCollapsed();
+  const [completedCollapsed, toggleCompleted] = useCollapsedSection('ui.completedCollapsed');
+  const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
+
+  // The refresh spinner appears ONLY for a physical pull-down — background
+  // refetches after mutations stay invisible (developer feedback).
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  async function onPullRefresh() {
+    setPullRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setPullRefreshing(false);
+    }
+  }
 
   const sections = useMemo(() => {
     const grouped = groupTasks(tasks ?? []);
-    // Collapsing = keep the header, hide the rows.
     return grouped.map((section) =>
-      section.key === 'completed' && completedCollapsed ? { ...section, data: [] } : section
+      (section.key === 'completed' && completedCollapsed) || (section.key === 'deleted' && deletedCollapsed)
+        ? { ...section, data: [] }
+        : section
     );
-  }, [tasks, completedCollapsed]);
+  }, [tasks, completedCollapsed, deletedCollapsed]);
 
-  const completedCount = useMemo(() => (tasks ?? []).filter((t) => t.isCompleted).length, [tasks]);
+  const completedCount = useMemo(
+    () => (tasks ?? []).filter((t) => t.isCompleted && !t.deletedAt).length,
+    [tasks]
+  );
+  const deletedCount = useMemo(() => (tasks ?? []).filter((t) => t.deletedAt).length, [tasks]);
 
-  function handleComplete(task: Task) {
-    setCompleted.mutate({ id: task.id, isCompleted: true });
-    toast.show({
-      message: 'Task completed.',
-      onUndo: () => setCompleted.mutate({ id: task.id, isCompleted: false }),
-    });
+  function handleSwipeRight(task: Task) {
+    animateListChanges();
+    if (task.deletedAt) {
+      restoreTask.mutate(task.id);
+    } else if (task.isCompleted) {
+      setCompleted.mutate({ id: task.id, isCompleted: false });
+    } else {
+      setCompleted.mutate({ id: task.id, isCompleted: true });
+      toast.show({
+        message: 'Task completed.',
+        onUndo: () => {
+          animateListChanges();
+          setCompleted.mutate({ id: task.id, isCompleted: false });
+        },
+      });
+    }
   }
 
-  function handleUncomplete(task: Task) {
-    setCompleted.mutate({ id: task.id, isCompleted: false });
+  function handleSwipeLeft(task: Task) {
+    animateListChanges();
+    if (task.deletedAt) {
+      permanentlyDelete.mutate(task.id);
+      toast.show({ message: 'Task permanently deleted.' });
+    } else {
+      deleteTask.mutate(task.id);
+      toast.show({
+        message: 'Task deleted.',
+        onUndo: () => {
+          animateListChanges();
+          restoreTask.mutate(task.id);
+        },
+      });
+    }
   }
 
-  function handleDelete(task: Task) {
-    deleteTask.mutate(task.id);
-    toast.show({
-      message: 'Task deleted.',
-      onUndo: () => restoreTask.mutate(task),
-    });
+  function renderCollapsibleHeader(key: SectionKey) {
+    const isCompleted = key === 'completed';
+    const collapsed = isCompleted ? completedCollapsed : deletedCollapsed;
+    const toggle = isCompleted ? toggleCompleted : toggleDeleted;
+    const label = isCompleted ? `Completed (${completedCount})` : `Deleted (${deletedCount})`;
+    return (
+      <Text
+        onPress={() => {
+          animateListChanges();
+          toggle();
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: !collapsed }}
+        style={[
+          type.h2,
+          { color: colors.textSecondary, backgroundColor: colors.surface, paddingVertical: space.s2 },
+        ]}>
+        {`${label}  `}
+        <IconSymbol
+          name={collapsed ? 'chevron.right' : 'chevron.down'}
+          size={14}
+          color={colors.textSecondary}
+        />
+      </Text>
+    );
   }
 
   return (
@@ -80,32 +148,11 @@ export default function TaskListScreen() {
           sections={sections}
           keyExtractor={(task) => String(task.id)}
           stickySectionHeadersEnabled
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+          refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
           contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
           renderSectionHeader={({ section }) =>
-            section.key === 'completed' ? (
-              <Text
-                onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.create(260, 'easeInEaseOut', 'opacity'));
-                  toggleCompleted();
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: !completedCollapsed }}
-                style={[
-                  type.h2,
-                  {
-                    color: colors.textSecondary,
-                    backgroundColor: colors.surface,
-                    paddingVertical: space.s2,
-                  },
-                ]}>
-                {`Completed (${completedCount})  `}
-                <IconSymbol
-                  name={completedCollapsed ? 'chevron.right' : 'chevron.down'}
-                  size={14}
-                  color={colors.textSecondary}
-                />
-              </Text>
+            section.key === 'completed' || section.key === 'deleted' ? (
+              renderCollapsibleHeader(section.key)
             ) : (
               <View style={{ backgroundColor: colors.surface, paddingVertical: space.s2 }}>
                 <Text style={[type.h2, { color: colors.textSecondary }]}>{section.title}</Text>
@@ -113,12 +160,7 @@ export default function TaskListScreen() {
             )
           }
           renderItem={({ item: task }) => (
-            <SwipeableTaskCard
-              task={task}
-              onComplete={handleComplete}
-              onUncomplete={handleUncomplete}
-              onDelete={handleDelete}
-            />
+            <SwipeableTaskCard task={task} onSwipeRight={handleSwipeRight} onSwipeLeft={handleSwipeLeft} />
           )}
           ItemSeparatorComponent={() => <View style={{ height: space.s3 }} />}
           SectionSeparatorComponent={() => <View style={{ height: space.s2 }} />}

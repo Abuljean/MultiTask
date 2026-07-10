@@ -5,7 +5,7 @@
 
 import type { Task } from './types';
 
-export type SectionKey = 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'noDueDate' | 'completed';
+export type SectionKey = 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'noDueDate' | 'completed' | 'deleted';
 
 export type TaskSection = {
   key: SectionKey;
@@ -20,6 +20,7 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   upcoming: 'Upcoming',
   noDueDate: 'No due date',
   completed: 'Completed',
+  deleted: 'Deleted',
 };
 
 function startOfDay(d: Date): Date {
@@ -45,6 +46,7 @@ export function groupTasks(tasks: Task[], now: Date = new Date()): TaskSection[]
     upcoming: [],
     noDueDate: [],
     completed: [],
+    deleted: [],
   };
 
   const todayStart = startOfDay(now);
@@ -52,7 +54,8 @@ export function groupTasks(tasks: Task[], now: Date = new Date()): TaskSection[]
   const dayAfterStart = addDays(todayStart, 2);
 
   for (const task of tasks) {
-    if (task.isCompleted) buckets.completed.push(task);
+    if (task.deletedAt) buckets.deleted.push(task);
+    else if (task.isCompleted) buckets.completed.push(task);
     else if (!task.dueDate) buckets.noDueDate.push(task);
     else if (task.dueDate.getTime() < now.getTime()) buckets.overdue.push(task);
     else if (task.dueDate.getTime() < tomorrowStart.getTime()) buckets.today.push(task);
@@ -60,9 +63,10 @@ export function groupTasks(tasks: Task[], now: Date = new Date()): TaskSection[]
     else buckets.upcoming.push(task);
   }
 
-  // Completed sits at the TOP (collapsed by default in the UI) so the active
-  // list below reads strictly by time — developer decision, 2026-07-09.
-  const order: SectionKey[] = ['completed', 'overdue', 'today', 'tomorrow', 'upcoming', 'noDueDate'];
+  // Completed sits at the TOP and Deleted (trash) at the BOTTOM, both
+  // collapsed by default in the UI, so the active list between them reads
+  // strictly by time — developer decisions, 2026-07-09/10.
+  const order: SectionKey[] = ['completed', 'overdue', 'today', 'tomorrow', 'upcoming', 'noDueDate', 'deleted'];
   return order
     .filter((key) => buckets[key].length > 0)
     .map((key) => ({

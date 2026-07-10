@@ -1,15 +1,17 @@
 // Quick-add (docs/design/04) — the app's most important flow. Title + time
-// ONLY; everything else stays out of the way (category/subject/priority get
-// a "+ details" reveal when the detail view slice lands). Keyboard opens
-// immediately on the title field. Date = platform calendar picker, time =
-// wheel with 15-minute steps (developer preference from the handoff).
+// ONLY; category/subject/priority/description arrive with the task-detail
+// slice. Presented as a TRANSPARENT MODAL ROUTE, not an RN <Modal>: Modal
+// hosts content in a separate native window where Reanimated updates
+// silently fail to apply (three animation approaches died there) — as a
+// route, the sheet lives in the normal view tree where animation provably
+// works. The task list stays visible behind the backdrop.
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,14 +23,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import type { NewTask } from '@/lib/tasks/types';
+import { useUndoToast } from '@/components/undo-toast';
+import { animateListChanges } from '@/lib/animate-layout';
+import { markEnter } from '@/lib/enter-marks';
+import { useCreateTask } from '@/lib/tasks/use-tasks';
 import { useTheme } from '@/lib/theme/use-theme';
-
-type Props = {
-  visible: boolean;
-  onClose: () => void;
-  onSubmit: (task: NewTask) => void;
-};
 
 /** Next quarter-hour from now — the default due time per the spec. */
 function nextRoundQuarterHour(): Date {
@@ -38,31 +37,14 @@ function nextRoundQuarterHour(): Date {
   return d;
 }
 
-export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
+export default function QuickAddScreen() {
+  const router = useRouter();
   const { colors, space, radius, type, monoFont, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const createTask = useCreateTask();
+  const toast = useUndoToast();
 
-  // The sheet's open/close is animated manually (Modal has animationType
-  // "none"): the built-in Modal dismissal gets visually cut short when the
-  // keyboard drops at the same time. Here the sheet slides down IN SYNC with
-  // the keyboard, and the backdrop fades alongside.
-  const sheetOffset = useSharedValue(screenHeight);
-  const backdropOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    if (visible) {
-      backdropOpacity.value = withTiming(1, { duration: 220 });
-      sheetOffset.value = withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) });
-    }
-  }, [visible, backdropOpacity, sheetOffset]);
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: sheetOffset.value }],
-  }));
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value * 0.35,
-  }));
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState<Date>(nextRoundQuarterHour);
   // `picker` = which chip is logically active; `renderedPicker` keeps the
@@ -71,9 +53,57 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
   const [renderedPicker, setRenderedPicker] = useState<'date' | 'time' | null>(null);
   const pickerHeight = useSharedValue(0);
 
-  // The picker reveal is an explicitly animated height (slide open/closed,
-  // ease-in-out, no bounce). LayoutAnimation was tried first but silently
-  // does nothing inside a Modal on the new architecture.
+  // Sheet enter/exit: slide up on mount; on close, dismiss the keyboard and
+  // slide down in sync with it, then pop the route.
+  const sheetOffset = useSharedValue(screenHeight);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    backdropOpacity.value = withTiming(1, { duration: 220 });
+    sheetOffset.value = withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) });
+  }, [backdropOpacity, sheetOffset]);
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: sheetOffset.value }],
+  }));
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value * 0.35,
+  }));
+
+  function goBack() {
+    router.back();
+  }
+
+  function close() {
+    Keyboard.dismiss();
+    backdropOpacity.value = withTiming(0, { duration: 220 });
+    sheetOffset.value = withTiming(
+      screenHeight,
+      { duration: 260, easing: Easing.in(Easing.cubic) },
+      (finished) => {
+        if (finished) runOnJS(goBack)();
+      }
+    );
+  }
+
+  function submit() {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Optimistic: the card appears in the list (visible behind the closing
+    // sheet) the moment Add is tapped, sliding into its sorted spot.
+    const tempId = -Date.now();
+    animateListChanges();
+    markEnter(tempId, 'right');
+    createTask.mutate(
+      { input: { title: trimmed, dueDate }, tempId },
+      { onError: () => toast.show({ message: 'Couldn’t add the task — check your connection.' }) }
+    );
+    close();
+  }
+
+  // The picker reveal is an explicitly animated height — slide open/closed,
+  // ease-in-out, no bounce.
   const PICKER_HEIGHTS = { date: 360, time: 216 } as const;
   function setPicker(next: 'date' | 'time' | null) {
     setPickerRaw(next);
@@ -100,41 +130,7 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
     overflow: 'hidden',
   }));
 
-  function reset() {
-    setTitle('');
-    setDueDate(nextRoundQuarterHour());
-    setPicker(null);
-  }
-
-  function finishClose() {
-    reset();
-    onClose();
-  }
-
-  function close() {
-    // Keyboard and sheet leave together; the modal unmounts only after the
-    // slide-down completes.
-    Keyboard.dismiss();
-    backdropOpacity.value = withTiming(0, { duration: 220 });
-    sheetOffset.value = withTiming(
-      screenHeight,
-      { duration: 260, easing: Easing.in(Easing.cubic) },
-      (finished) => {
-        if (finished) runOnJS(finishClose)();
-      }
-    );
-  }
-
-  function submit() {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onSubmit({ title: trimmed, dueDate });
-    close();
-  }
-
   function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
-    // Android fires 'dismissed' when the dialog is cancelled.
     if (event.type === 'dismissed') {
       setPicker(null);
       return;
@@ -150,7 +146,6 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
         return next;
       });
     }
-    // Android pickers are one-shot dialogs; iOS inline pickers stay open.
     if (Platform.OS === 'android') setPicker(null);
   }
 
@@ -163,12 +158,12 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
   } as const;
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
-      {/* Backdrop: tap outside to cancel. */}
+    <View style={styles.container}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.container}>
+        {/* Tap outside to cancel. */}
         <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close quick add" />
         <Animated.View
           style={[
@@ -199,10 +194,8 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
             value={title}
             onChangeText={setTitle}
             autoFocus
-            // Done on the keyboard only dismisses the keyboard (blur), making
-            // room for the pickers — with keyboard + calendar open the sheet
-            // nearly fills the screen. Adding happens ONLY via the Add task
-            // button (developer decision, 2026-07-10).
+            // Done on the keyboard only dismisses the keyboard, making room
+            // for the pickers. Adding happens ONLY via the Add task button.
             returnKeyType="done"
           />
 
@@ -273,7 +266,7 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
           </Pressable>
         </Animated.View>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   );
 }
 

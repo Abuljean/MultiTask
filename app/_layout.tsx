@@ -37,6 +37,13 @@ function RootNavigator() {
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        {/* Quick-add is a transparent route, NOT an RN <Modal> — Reanimated
+            updates don't apply inside Modal's separate native window. The
+            route animates its own sheet; the task list stays visible behind. */}
+        <Stack.Screen
+          name="quick-add"
+          options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />

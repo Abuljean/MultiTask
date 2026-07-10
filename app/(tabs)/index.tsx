@@ -2,21 +2,21 @@
 // Overdue / Today / Tomorrow / Upcoming / No due date by time, Deleted
 // (collapsed trash) at the bottom. Swipeable cards, optimistic mutations,
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
-import { QuickAddSheet } from '@/components/quick-add-sheet';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { animateListChanges } from '@/lib/animate-layout';
+import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import { groupTasks, type SectionKey } from '@/lib/tasks/sections';
-import type { NewTask, Task } from '@/lib/tasks/types';
+import type { Task } from '@/lib/tasks/types';
 import {
-  useCreateTask,
   useDeleteTask,
   usePermanentlyDeleteTask,
   useRestoreTask,
@@ -26,6 +26,7 @@ import {
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TaskListScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
   const { data: tasks, isLoading, error, refetch } = useTasks();
@@ -33,9 +34,7 @@ export default function TaskListScreen() {
   const deleteTask = useDeleteTask();
   const restoreTask = useRestoreTask();
   const permanentlyDelete = usePermanentlyDeleteTask();
-  const createTask = useCreateTask();
   const toast = useUndoToast();
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [completedCollapsed, toggleCompleted] = useCollapsedSection('ui.completedCollapsed');
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
 
@@ -72,29 +71,6 @@ export default function TaskListScreen() {
   function showError(what: string) {
     return () => toast.show({ message: `Couldn’t ${what} — check your connection.` });
   }
-
-  // Entrance bookkeeping: right before a mutation moves a task to another
-  // group, note which side its card should slide in from. The card consumes
-  // the mark when it renders (it usually mounts fresh — arrivals often come
-  // out of collapsed sections or the undo toast, so the card itself can't
-  // know it "moved"). Marks expire so a task expanded into view much later
-  // doesn't randomly animate.
-  const enterMarks = useRef(new Map<number, { from: 'left' | 'right'; at: number }>());
-  function markEnter(id: number, from: 'left' | 'right') {
-    enterMarks.current.set(id, { from, at: Date.now() });
-  }
-  function getEnterFrom(id: number): 'left' | 'right' | null {
-    const mark = enterMarks.current.get(id);
-    if (!mark) return null;
-    if (Date.now() - mark.at > 1500) {
-      enterMarks.current.delete(id);
-      return null;
-    }
-    return mark.from;
-  }
-  const clearEnterMark = useCallback((id: number) => {
-    enterMarks.current.delete(id);
-  }, []);
 
   function handleSwipeRight(task: Task) {
     animateListChanges();
@@ -133,15 +109,6 @@ export default function TaskListScreen() {
         },
       });
     }
-  }
-
-  function handleQuickAdd(input: NewTask) {
-    // Optimistic: the card appears the moment Add is tapped, sliding into
-    // its sorted spot; the server insert happens in the background.
-    const tempId = -Date.now();
-    animateListChanges();
-    markEnter(tempId, 'right');
-    createTask.mutate({ input, tempId }, { onError: showError('add the task') });
   }
 
   function renderCollapsibleHeader(key: SectionKey) {
@@ -226,8 +193,7 @@ export default function TaskListScreen() {
         />
       )}
 
-      <Fab bottom={insets.bottom + 24} onPress={() => setQuickAddOpen(true)} />
-      <QuickAddSheet visible={quickAddOpen} onClose={() => setQuickAddOpen(false)} onSubmit={handleQuickAdd} />
+      <Fab bottom={insets.bottom + 24} onPress={() => router.push('/quick-add')} />
     </View>
   );
 }

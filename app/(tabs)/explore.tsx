@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/lib/supabase';
 import { deriveStatus, type TaskStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 import { useCreateTask, useDeleteTask, useSetTaskCompleted, useTasks } from '@/lib/tasks/use-tasks';
@@ -33,6 +35,7 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
 
 export default function DebugTasksScreen() {
   const insets = useSafeAreaInsets();
+  const { session } = useAuth();
   const { data: tasks, isLoading, error, refetch, isRefetching } = useTasks();
   const createTask = useCreateTask();
   const setCompleted = useSetTaskCompleted();
@@ -119,6 +122,11 @@ export default function DebugTasksScreen() {
         />
       )}
       <Text style={styles.hint}>Tap = toggle complete · long-press = delete · pull = refresh</Text>
+      {/* Auth harness lives here until a real Settings screen exists. */}
+      <View style={styles.authRow}>
+        <Text style={styles.meta}>{session?.user.email ?? 'not signed in'}</Text>
+        <Button title="Sign out" onPress={() => supabase.auth.signOut()} />
+      </View>
     </View>
   );
 }
@@ -145,4 +153,5 @@ const styles = StyleSheet.create({
   titleCompleted: { textDecorationLine: 'line-through', color: '#999' },
   meta: { fontSize: 12, color: '#888', marginTop: 2 },
   hint: { fontSize: 11, color: '#aaa', textAlign: 'center', paddingVertical: 8 },
+  authRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8 },
 });

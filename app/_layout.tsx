@@ -1,3 +1,4 @@
+import { JetBrainsMono_500Medium, useFonts } from '@expo-google-fonts/jetbrains-mono';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
@@ -45,6 +46,13 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  // JetBrains Mono is the identity font for time chips (docs/design/03).
+  // Hold the splash screen until it's ready so text never swaps mid-view.
+  const [fontsLoaded] = useFonts({ JetBrainsMono_500Medium });
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <AuthProvider>

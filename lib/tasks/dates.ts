@@ -46,3 +46,17 @@ export function formatWallClock(date: Date): string {
 export function addHours(date: Date, hours: number): Date {
   return new Date(date.getTime() + hours * 60 * 60 * 1000);
 }
+
+/** Display format per docs/design/02: "Fri, May 24 · 2:30 PM" (year added
+ *  only when it differs from the current year). */
+export function formatDueDate(date: Date, now: Date = new Date()): string {
+  const sameYear = date.getFullYear() === now.getFullYear();
+  const day = date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${day} · ${time}`;
+}

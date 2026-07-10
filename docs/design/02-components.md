@@ -28,6 +28,8 @@ The most-touched component. Every property is deliberate.
 - Third row (optional, only if present): description preview (1 line, tertiary text)
 - Bottom row: category pill + subject pill + priority tier badge, small size
 
+> **Resolved (2026-07-09, first implementation):** the priority tier badge appears in the *top row only* (before the title), not duplicated in the bottom pill row — one status, one place. Default-status cards use `surface-elevated` + 1px `border-subtle` on the `surface` screen background (per the 03 file's "surface-elevated — cards"; the light-mode `surface` entry in the table above was superseded because same-on-same needs no border to fail). Due dates render in JetBrains Mono at caption size.
+
 **Sizing:**
 - Radius: `radius.card` (16)
 - Padding: `space.4` (16) all sides

@@ -1,108 +1,81 @@
-import { Image } from 'expo-image';
-import { Button, Platform, StyleSheet } from 'react-native';
+// The task list — the app's landing screen. Sections per docs/design/03
+// (Overdue / Today / Tomorrow / Later / No due date / Completed), TaskCards
+// per docs/design/02, density-first. Quick-add FAB and swipe gestures arrive
+// in the next slices.
+import { useMemo } from 'react';
+import { RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useAuth } from '@/hooks/use-auth';
-import { supabase } from '@/lib/supabase';
-import { Link } from 'expo-router';
+import { TaskCard } from '@/components/task-card';
+import { groupTasks } from '@/lib/tasks/sections';
+import { useSetTaskCompleted, useTasks } from '@/lib/tasks/use-tasks';
+import { useTheme } from '@/lib/theme/use-theme';
 
-export default function HomeScreen() {
-  const { session } = useAuth();
+export default function TaskListScreen() {
+  const insets = useSafeAreaInsets();
+  const { colors, space, type } = useTheme();
+  const { data: tasks, isLoading, error, refetch, isRefetching } = useTasks();
+  const setCompleted = useSetTaskCompleted();
+
+  const sections = useMemo(() => groupTasks(tasks ?? []), [tasks]);
 
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      {/* Temporary auth test harness — removed when the real Today view lands. */}
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Auth check</ThemedText>
-        <ThemedText>Signed in as {session?.user.email ?? 'unknown'}</ThemedText>
-        <Button title="Sign out" onPress={() => supabase.auth.signOut()} />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+      <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
+        Tasks
+      </Text>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {isLoading ? (
+        // Skeleton per docs/design/05: grey placeholder cards, no shimmer,
+        // no full-screen spinner.
+        <View style={{ paddingHorizontal: space.s4, gap: space.s3 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <View
+              key={i}
+              style={{ height: 88, borderRadius: 16, backgroundColor: colors.surfaceSunken }}
+            />
+          ))}
+        </View>
+      ) : error ? (
+        <View style={{ paddingHorizontal: space.s4 }}>
+          <Text style={[type.body, { color: colors.textPrimary }]}>Couldn’t load tasks.</Text>
+          <Text style={[type.body, { color: colors.accent, marginTop: space.s2 }]} onPress={() => refetch()}>
+            Retry
+          </Text>
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(task) => String(task.id)}
+          stickySectionHeadersEnabled
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
+          contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
+          renderSectionHeader={({ section }) => (
+            <View style={{ backgroundColor: colors.surface, paddingVertical: space.s2 }}>
+              <Text style={[type.h2, { color: colors.textSecondary }]}>{section.title}</Text>
+            </View>
+          )}
+          renderItem={({ item: task }) => (
+            <TaskCard
+              task={task}
+              onToggleComplete={(t) => setCompleted.mutate({ id: t.id, isCompleted: !t.isCompleted })}
+            />
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: space.s3 }} />}
+          SectionSeparatorComponent={() => <View style={{ height: space.s2 }} />}
+          // Empty state per docs/design/02: factual, small, no illustration,
+          // no exclamation points.
+          ListEmptyComponent={
+            <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s6 }]}>
+              No tasks yet.
+            </Text>
+          }
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  screen: { flex: 1 },
 });

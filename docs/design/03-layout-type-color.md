@@ -184,6 +184,8 @@ Dark mode is not "invert the light theme." Every color pair has to be re-verifie
 - FAB (quick-add) bottom-right on iOS, bottom-center or bottom-right on Android per M3 conventions
 
 ### Mobile Today view
+
+> **Resolved (2026-07-10):** this view is named **"Daily"** in the product (tab + screen title) — it's about daily recurrence, and "day view" is reserved for the calendar's future day drill-down. Structure as built: h1 "Daily" + long date · "Recurring" section (pill-shaped check rows: tap toggles today's completion, long-press removes/archives with undo, inline "Add daily task" link) · "Due today" section (regular swipeable task cards, overdue included, completed ones stay on the Tasks tab). Recurring reset is derived from per-day completion rows — no cron.
 - Full-bleed h1 at top ("Today"), with the date in `text-secondary` below
 - Split into "Recurring" section (daily-refreshing tasks — check-off but never delete) and "Tasks due today" (regular tasks with today's date)
 - Recurring items are visually distinct: rounded pill-shaped rows with a check circle, no due-time chip

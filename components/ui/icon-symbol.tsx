@@ -26,6 +26,7 @@ const MAPPING = {
   'trash.fill': 'delete',
   'chevron.down': 'keyboard-arrow-down',
   plus: 'add',
+  'sun.max.fill': 'wb-sunny',
 } as IconMapping;
 
 /**

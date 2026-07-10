@@ -10,19 +10,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Fab } from '@/components/fab';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
+import { useTaskActions } from '@/hooks/use-task-actions';
 import { animateListChanges } from '@/lib/animate-layout';
-import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
+import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { groupTasks, type SectionKey } from '@/lib/tasks/sections';
-import type { Task } from '@/lib/tasks/types';
-import {
-  useDeleteTask,
-  usePermanentlyDeleteTask,
-  useRestoreTask,
-  useSetTaskCompleted,
-  useTasks,
-} from '@/lib/tasks/use-tasks';
+import { useTasks } from '@/lib/tasks/use-tasks';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TaskListScreen() {
@@ -30,11 +23,7 @@ export default function TaskListScreen() {
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
   const { data: tasks, isLoading, error, refetch } = useTasks();
-  const setCompleted = useSetTaskCompleted();
-  const deleteTask = useDeleteTask();
-  const restoreTask = useRestoreTask();
-  const permanentlyDelete = usePermanentlyDeleteTask();
-  const toast = useUndoToast();
+  const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
   const [completedCollapsed, toggleCompleted] = useCollapsedSection('ui.completedCollapsed');
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
 
@@ -64,52 +53,6 @@ export default function TaskListScreen() {
     [tasks]
   );
   const deletedCount = useMemo(() => (tasks ?? []).filter((t) => t.deletedAt).length, [tasks]);
-
-  // A failed mutation rolls the optimistic change back — the task visibly
-  // snaps back. Without a message that reads as a spooky bug, so every
-  // handler surfaces the failure factually.
-  function showError(what: string) {
-    return () => toast.show({ message: `Couldn’t ${what} — check your connection.` });
-  }
-
-  function handleSwipeRight(task: Task) {
-    animateListChanges();
-    markEnter(task.id, 'right');
-    if (task.deletedAt) {
-      restoreTask.mutate(task.id, { onError: showError('restore the task') });
-    } else if (task.isCompleted) {
-      setCompleted.mutate({ id: task.id, isCompleted: false }, { onError: showError('update the task') });
-    } else {
-      setCompleted.mutate({ id: task.id, isCompleted: true }, { onError: showError('complete the task') });
-      toast.show({
-        message: 'Task completed.',
-        onUndo: () => {
-          animateListChanges();
-          markEnter(task.id, 'right');
-          setCompleted.mutate({ id: task.id, isCompleted: false }, { onError: showError('update the task') });
-        },
-      });
-    }
-  }
-
-  function handleSwipeLeft(task: Task) {
-    animateListChanges();
-    if (task.deletedAt) {
-      permanentlyDelete.mutate(task.id, { onError: showError('delete the task') });
-      toast.show({ message: 'Task permanently deleted.' });
-    } else {
-      markEnter(task.id, 'left'); // it enters the trash leftward
-      deleteTask.mutate(task.id, { onError: showError('delete the task') });
-      toast.show({
-        message: 'Task deleted.',
-        onUndo: () => {
-          animateListChanges();
-          markEnter(task.id, 'right');
-          restoreTask.mutate(task.id, { onError: showError('restore the task') });
-        },
-      });
-    }
-  }
 
   function renderCollapsibleHeader(key: SectionKey) {
     const isCompleted = key === 'completed';

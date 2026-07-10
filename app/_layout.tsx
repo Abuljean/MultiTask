@@ -9,10 +9,14 @@ import 'react-native-reanimated';
 import { UndoToastProvider } from '@/components/undo-toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { initNotifications } from '@/lib/notifications';
 
 // One QueryClient for the app's lifetime (module scope, NOT inside the
 // component — recreating it on re-render would wipe the cache).
 const queryClient = new QueryClient();
+
+// Foreground notification display + Android channel — once per process.
+initNotifications();
 
 export const unstable_settings = {
   anchor: '(tabs)',

@@ -7,18 +7,21 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useUndoToast } from '@/components/undo-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { useNotificationLead } from '@/hooks/use-notification-lead';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { base64ToBytes } from '@/lib/base64';
+import { ensureNotificationPermission, getNotificationPermissionStatus } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/lib/theme/use-theme';
 
 const THRESHOLD_OPTIONS = [12, 24, 48, 72];
+const LEAD_OPTIONS = [30, 60, 120]; // minutes before the deadline
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -26,7 +29,13 @@ export default function SettingsScreen() {
   const { session } = useAuth();
   const toast = useUndoToast();
   const threshold = useUrgencyThreshold();
+  const leadMinutes = useNotificationLead();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [notifStatus, setNotifStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+
+  useEffect(() => {
+    getNotificationPermissionStatus().then(setNotifStatus);
+  }, []);
 
   const user = session?.user;
   const email = user?.email ?? '';
@@ -215,6 +224,55 @@ export default function SettingsScreen() {
                 }}>
                 <Text style={[type.body, { color: selected ? colors.accent : colors.textPrimary }]}>
                   {hours}h
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {sectionTitle('Notifications')}
+        <Text style={[type.body, { color: colors.textSecondary, marginBottom: space.s2 }]}>
+          {notifStatus === 'granted'
+            ? 'On — you’ll be notified when a task turns urgent, and before its deadline.'
+            : notifStatus === 'denied'
+              ? 'Off — enable notifications for Multitask in your phone’s Settings.'
+              : 'Not set up yet.'}
+        </Text>
+        {notifStatus !== 'granted' &&
+          actionRow('Enable notifications', async () => {
+            const granted = await ensureNotificationPermission();
+            setNotifStatus(await getNotificationPermissionStatus());
+            if (granted) toast.show({ message: 'Notifications enabled.' });
+          })}
+        <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s2, marginBottom: space.s2 }]}>
+          Remind me before a deadline:
+        </Text>
+        <View style={[styles.chipRow, { gap: space.s2 }]}>
+          {LEAD_OPTIONS.map((minutes) => {
+            const selected = leadMinutes === minutes;
+            const label = minutes < 60 ? `${minutes}m` : `${minutes / 60}h`;
+            return (
+              <Pressable
+                key={minutes}
+                onPress={async () => {
+                  const { error } = await supabase.auth.updateUser({
+                    data: { notification_lead_minutes: minutes },
+                  });
+                  if (error) toast.show({ message: 'Couldn’t save the setting.' });
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: selected ? colors.accent : colors.borderSubtle,
+                  backgroundColor: selected ? colors.accentMuted : 'transparent',
+                  borderRadius: radius.button,
+                  paddingHorizontal: space.s4,
+                  height: 40,
+                  justifyContent: 'center',
+                }}>
+                <Text style={[type.body, { color: selected ? colors.accent : colors.textPrimary }]}>
+                  {label}
                 </Text>
               </Pressable>
             );

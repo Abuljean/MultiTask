@@ -49,7 +49,7 @@ export default function DebugTasksScreen() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(12, 0, 0, 0);
     createTask.mutate(
-      { title: title.trim(), dueDate: tomorrow },
+      { input: { title: title.trim(), dueDate: tomorrow }, tempId: -Date.now() },
       {
         onSuccess: () => setTitle(''),
         onError: (e) => Alert.alert('Create failed', e.message),

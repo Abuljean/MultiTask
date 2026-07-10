@@ -55,10 +55,14 @@ async function currentUserUuid(): Promise<string> {
   return uuid;
 }
 
+/** Optimistic create: the caller supplies a temporary NEGATIVE id (so it can
+ *  never collide with a real task_id and the caller can reference the row,
+ *  e.g. for the entrance animation). The temp task shows instantly; on
+ *  success it's swapped for the server row in place. */
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: NewTask) => {
+    mutationFn: async ({ input }: { input: NewTask; tempId: number }) => {
       const userUuid = await currentUserUuid();
       // RLS's WITH CHECK verifies user_uuid === auth.uid() server-side.
       const { data, error } = await supabase
@@ -69,6 +73,29 @@ export function useCreateTask() {
       if (error) throw error;
       return toTask(data as TaskRow);
     },
+    onMutate: ({ input, tempId }) =>
+      applyOptimistic(queryClient, (tasks) => [
+        ...tasks,
+        {
+          id: tempId,
+          title: input.title,
+          description: input.description ?? '',
+          createdAt: new Date(),
+          dueDate: input.dueDate,
+          isCompleted: false,
+          subject: input.subject ?? '',
+          subjectColor: input.subjectColor ?? '#e5e7eb',
+          category: input.category ?? 'Uncategorized',
+          categoryColor: input.categoryColor ?? '#fef3c7',
+          priority: input.priority ?? null,
+          deletedAt: null,
+        },
+      ]),
+    onSuccess: (serverTask, { tempId }) =>
+      queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
+        old?.map((t) => (t.id === tempId ? serverTask : t))
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
   });
 }

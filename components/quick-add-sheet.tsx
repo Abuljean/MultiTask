@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  LayoutAnimation,
   Modal,
   Platform,
   Pressable,
@@ -40,7 +41,14 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState<Date>(nextRoundQuarterHour);
-  const [picker, setPicker] = useState<'date' | 'time' | null>(null);
+  const [picker, setPickerRaw] = useState<'date' | 'time' | null>(null);
+
+  // The picker appearing/disappearing resizes the sheet — animate that as a
+  // plain slide (ease-in-out, no bounce, developer preference).
+  function setPicker(next: 'date' | 'time' | null) {
+    LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
+    setPickerRaw(next);
+  }
 
   function reset() {
     setTitle('');

@@ -136,14 +136,12 @@ export default function TaskListScreen() {
   }
 
   function handleQuickAdd(input: NewTask) {
-    createTask.mutate(input, {
-      onSuccess: (task) => {
-        // Slide the new card into its sorted spot, same as any arrival.
-        animateListChanges();
-        markEnter(task.id, 'right');
-      },
-      onError: showError('add the task'),
-    });
+    // Optimistic: the card appears the moment Add is tapped, sliding into
+    // its sorted spot; the server insert happens in the background.
+    const tempId = -Date.now();
+    animateListChanges();
+    markEnter(tempId, 'right');
+    createTask.mutate({ input, tempId }, { onError: showError('add the task') });
   }
 
   function renderCollapsibleHeader(key: SectionKey) {

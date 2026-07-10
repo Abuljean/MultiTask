@@ -40,9 +40,10 @@ const TRAIL_REVEAL_PX = 4;
 // Used for the snap-back when a swipe is released below the threshold.
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
 
-// Entrance (developer pick, FINAL after tuning session 2026-07-10): glide
-// in and stop dead — pure deceleration, no bounce, no recoil.
-const ENTER_DURATION_MS = 380;
+// Entrance (developer pick after tuning session 2026-07-10): glide in and
+// stop dead — pure deceleration, no bounce, no recoil. 500ms: deliberately
+// slow ("motion.deliberate" tier), clearly slower than the swipe-off.
+const ENTER_DURATION_MS = 500;
 
 type Props = {
   task: Task;

@@ -41,9 +41,9 @@ const TRAIL_REVEAL_PX = 4;
 const SETTLE_SPRING = { damping: 26, stiffness: 240 };
 
 // Entrance (developer pick after tuning session 2026-07-10): glide in and
-// stop dead — pure deceleration, no bounce, no recoil. 500ms: deliberately
-// slow ("motion.deliberate" tier), clearly slower than the swipe-off.
-const ENTER_DURATION_MS = 500;
+// stop dead — pure deceleration, no bounce, no recoil. 647.2ms — the golden
+// ratio again (400 × 1.618), deliberately slow.
+const ENTER_DURATION_MS = 647.2;
 
 type Props = {
   task: Task;

@@ -8,7 +8,6 @@ import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  LayoutAnimation,
   Modal,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { NewTask } from '@/lib/tasks/types';
 import { useTheme } from '@/lib/theme/use-theme';
@@ -41,14 +41,40 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState<Date>(nextRoundQuarterHour);
+  // `picker` = which chip is logically active; `renderedPicker` keeps the
+  // content mounted while the close animation runs.
   const [picker, setPickerRaw] = useState<'date' | 'time' | null>(null);
+  const [renderedPicker, setRenderedPicker] = useState<'date' | 'time' | null>(null);
+  const pickerHeight = useSharedValue(0);
 
-  // The picker appearing/disappearing resizes the sheet — animate that as a
-  // plain slide (ease-in-out, no bounce, developer preference).
+  // The picker reveal is an explicitly animated height (slide open/closed,
+  // ease-in-out, no bounce). LayoutAnimation was tried first but silently
+  // does nothing inside a Modal on the new architecture.
+  const PICKER_HEIGHTS = { date: 360, time: 216 } as const;
   function setPicker(next: 'date' | 'time' | null) {
-    LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
     setPickerRaw(next);
+    if (Platform.OS !== 'ios') {
+      // Android pickers are system dialogs, not inline — nothing to animate.
+      setRenderedPicker(next);
+      return;
+    }
+    if (next) {
+      setRenderedPicker(next);
+      pickerHeight.value = withTiming(PICKER_HEIGHTS[next], {
+        duration: 220,
+        easing: Easing.inOut(Easing.cubic),
+      });
+    } else {
+      pickerHeight.value = withTiming(0, { duration: 220, easing: Easing.inOut(Easing.cubic) }, (finished) => {
+        if (finished) runOnJS(setRenderedPicker)(null);
+      });
+    }
   }
+
+  const pickerContainerStyle = useAnimatedStyle(() => ({
+    height: pickerHeight.value,
+    overflow: 'hidden',
+  }));
 
   function reset() {
     setTitle('');
@@ -78,7 +104,7 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
     if (selected) {
       setDueDate((current) => {
         const next = new Date(current);
-        if (picker === 'date') {
+        if (renderedPicker === 'date') {
           next.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
         } else {
           next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
@@ -158,16 +184,32 @@ export function QuickAddSheet({ visible, onClose, onSubmit }: Props) {
             </Pressable>
           </View>
 
-          {picker && (
-            <DateTimePicker
-              value={dueDate}
-              mode={picker}
-              display={Platform.OS === 'ios' ? (picker === 'date' ? 'inline' : 'spinner') : 'default'}
-              minuteInterval={15}
-              onChange={onPickerChange}
-              accentColor={colors.accent}
-              themeVariant={isDark ? 'dark' : 'light'}
-            />
+          {Platform.OS === 'ios' ? (
+            <Animated.View style={pickerContainerStyle}>
+              {renderedPicker && (
+                <DateTimePicker
+                  value={dueDate}
+                  mode={renderedPicker}
+                  display={renderedPicker === 'date' ? 'inline' : 'spinner'}
+                  minuteInterval={15}
+                  onChange={onPickerChange}
+                  accentColor={colors.accent}
+                  themeVariant={isDark ? 'dark' : 'light'}
+                />
+              )}
+            </Animated.View>
+          ) : (
+            renderedPicker && (
+              <DateTimePicker
+                value={dueDate}
+                mode={renderedPicker}
+                display="default"
+                minuteInterval={15}
+                onChange={onPickerChange}
+                accentColor={colors.accent}
+                themeVariant={isDark ? 'dark' : 'light'}
+              />
+            )
           )}
 
           <Pressable

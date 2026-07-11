@@ -229,15 +229,45 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     ]);
   }
 
-  // The grabber is honest now: drag the sheet down to dismiss (follows the
-  // finger; springs back below the threshold; confirms when dirty).
-  const grabberPan = Gesture.Pan()
+  // The WHOLE SHEET drags down to dismiss (developer request) — follows the
+  // finger, springs back below the threshold, confirms when dirty. Runs
+  // simultaneously with the body scroll but only engages while the scroll
+  // sits at the top; horizontal movement fails it (chip rows). Disabled
+  // while a date/time picker is open — spinning the wheel must never drag
+  // the sheet. Dragging also tucks the keyboard away.
+  const scrollTop = useSharedValue(0);
+  const dragBase = useSharedValue(-1);
+  const keyboardTucked = useSharedValue(0);
+  const bodyScrollGesture = Gesture.Native();
+
+  function tuckKeyboard() {
+    Keyboard.dismiss();
+  }
+
+  const sheetPan = Gesture.Pan()
+    .enabled(renderedPicker === null)
     .activeOffsetY(12)
+    .failOffsetX([-14, 14])
+    .simultaneousWithExternalGesture(bodyScrollGesture)
+    .onStart(() => {
+      dragBase.value = -1;
+      keyboardTucked.value = 0;
+    })
     .onUpdate((event) => {
-      sheetOffset.value = Math.max(0, event.translationY);
+      if (scrollTop.value <= 0.5 && event.translationY > 0) {
+        if (dragBase.value < 0) dragBase.value = event.translationY;
+        sheetOffset.value = Math.max(0, event.translationY - dragBase.value);
+        if (sheetOffset.value > 20 && keyboardTucked.value === 0) {
+          keyboardTucked.value = 1;
+          runOnJS(tuckKeyboard)();
+        }
+      } else {
+        dragBase.value = -1;
+        sheetOffset.value = 0;
+      }
     })
     .onEnd((event) => {
-      if (event.translationY > 120 || event.velocityY > 800) {
+      if (sheetOffset.value > 120 || (sheetOffset.value > 30 && event.velocityY > 800)) {
         runOnJS(maybeClose)();
       } else {
         sheetOffset.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
@@ -353,9 +383,10 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
-      {/* Tap outside (or drag the grabber down) to cancel; unsaved changes
+      {/* Tap outside (or drag the sheet down) to cancel; unsaved changes
           get a discard confirmation. */}
       <Pressable style={styles.backdropTouch} onPress={maybeClose} accessibilityLabel="Close" />
+      <GestureDetector gesture={sheetPan}>
       <Animated.View
         style={[
           styles.sheet,
@@ -368,15 +399,18 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             paddingBottom: keyboardHeight > 0 ? keyboardHeight + space.s3 : Math.max(insets.bottom, space.s4),
           },
         ]}>
-        <GestureDetector gesture={grabberPan}>
-          <View style={styles.grabberZone} accessibilityLabel="Drag down to close" accessibilityRole="adjustable">
-            <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
-          </View>
-        </GestureDetector>
+        <View style={styles.grabberZone} accessibilityLabel="Drag down to close" accessibilityRole="adjustable">
+          <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
+        </View>
 
+        <GestureDetector gesture={bodyScrollGesture}>
         <ScrollView
           style={{ maxHeight: maxBodyHeight }}
           bounces={false}
+          onScroll={(e) => {
+            scrollTop.value = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <TextInput
@@ -577,6 +611,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             </View>
           </CollapsibleReveal>
         </ScrollView>
+        </GestureDetector>
 
         <Pressable
           onPress={submit}
@@ -595,6 +630,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
           <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>{submitLabel}</Text>
         </Pressable>
       </Animated.View>
+      </GestureDetector>
     </View>
   );
 }

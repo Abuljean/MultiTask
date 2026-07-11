@@ -16,6 +16,8 @@ export type CalendarEvent = {
   location: string | null;
   notes: string | null;
   source: string | null;
+  /** Hex color; null = the theme's standard event blue. */
+  color: string | null;
 };
 
 type EventRow = {
@@ -27,6 +29,7 @@ type EventRow = {
   location: string | null;
   notes: string | null;
   source: string | null;
+  color?: string | null;
 };
 
 function toEvent(row: EventRow): CalendarEvent {
@@ -39,6 +42,7 @@ function toEvent(row: EventRow): CalendarEvent {
     location: row.location,
     notes: row.notes,
     source: row.source,
+    color: row.color ?? null,
   };
 }
 
@@ -57,7 +61,16 @@ async function fetchEvents(): Promise<CalendarEvent[]> {
 export function useImportEvents() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ events, source }: { events: ParsedEvent[]; source: string }) => {
+    mutationFn: async ({
+      events,
+      source,
+      defaultColor,
+    }: {
+      events: ParsedEvent[];
+      source: string;
+      /** Applied to rows whose CSV didn't specify a color; null = theme blue. */
+      defaultColor: string | null;
+    }) => {
       const { data } = await supabase.auth.getSession();
       const userUuid = data.session?.user.id;
       if (!userUuid) throw new Error('Not signed in');
@@ -70,6 +83,7 @@ export function useImportEvents() {
         location: e.location,
         notes: e.notes,
         source,
+        color: e.color ?? defaultColor,
       }));
       // Chunked inserts keep each request comfortably sized.
       for (let i = 0; i < rows.length; i += 100) {

@@ -19,7 +19,40 @@ export type ParsedEvent = {
   allDay: boolean;
   location: string | null;
   notes: string | null;
+  /** Hex color from the CSV's optional color column; null = use default. */
+  color: string | null;
 };
+
+/** Friendly color names accepted in the CSV's color column. */
+export const NAMED_EVENT_COLORS: Record<string, string> = {
+  red: '#ef4444',
+  orange: '#f97316',
+  yellow: '#eab308',
+  green: '#22c55e',
+  teal: '#14b8a6',
+  blue: '#3b82f6',
+  indigo: '#6366f1',
+  purple: '#a855f7',
+  pink: '#ec4899',
+  gray: '#6b7280',
+  grey: '#6b7280',
+};
+
+/** Hex (#abc or #aabbcc) or a friendly name → normalized hex; else null.
+ *  Unrecognized colors are ignored rather than failing the row. */
+export function normalizeColor(value: string): string | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return null;
+  if (NAMED_EVENT_COLORS[trimmed]) return NAMED_EVENT_COLORS[trimmed];
+  const hex6 = /^#?([0-9a-f]{6})$/.exec(trimmed);
+  if (hex6) return `#${hex6[1]}`;
+  const hex3 = /^#?([0-9a-f]{3})$/.exec(trimmed);
+  if (hex3) {
+    const [r, g, b] = hex3[1];
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return null;
+}
 
 export type CsvImportResult = {
   events: ParsedEvent[];
@@ -81,6 +114,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   endTime: ['endtime', 'end'],
   location: ['location', 'place', 'where'],
   notes: ['notes', 'description', 'details'],
+  color: ['color', 'colour'],
 };
 
 function mapColumns(headers: string[]): Record<string, number> {
@@ -188,6 +222,7 @@ export function csvToEvents(text: string): CsvImportResult {
       allDay,
       location: cell('location') || null,
       notes: cell('notes') || null,
+      color: normalizeColor(cell('color')),
     });
   }
 

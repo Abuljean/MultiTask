@@ -182,7 +182,7 @@ export default function CalendarScreen() {
     }
     const key = localDateKey(date);
     const dayTasks = byDay.get(key) ?? [];
-    const dayEventCount = eventDays.get(key)?.length ?? 0;
+    const dayEvents = eventDays.get(key);
     const isToday = key === todayKey;
     const hasOverdue = dayTasks.some((t) => deriveStatus(t) === 'overdue');
     return (
@@ -227,9 +227,12 @@ export default function CalendarScreen() {
           </Text>
         </View>
         <View style={styles.dotRow}>
-          {/* Events are visually distinct: hollow blue ring vs solid task dots. */}
-          {dayEventCount > 0 && (
-            <View style={[styles.eventRing, { borderColor: colors.statusEventAccent }]} />
+          {/* Events are visually distinct: hollow ring vs solid task dots
+              (ring takes the day's first event color). */}
+          {dayEvents && dayEvents.length > 0 && (
+            <View
+              style={[styles.eventRing, { borderColor: dayEvents[0].color ?? colors.statusEventAccent }]}
+            />
           )}
           {dayTasks.slice(0, 3).map((t) => (
             <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />

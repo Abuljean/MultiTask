@@ -50,6 +50,13 @@ describe('csvToEvents', () => {
     expect(errors[1]).toContain('Row 4');
   });
 
+  test('color column accepts hex and friendly names, ignores junk', () => {
+    const { events } = csvToEvents(
+      'title,date,color\nA,2026-09-01,green\nB,2026-09-02,#A855F7\nC,2026-09-03,#f0a\nD,2026-09-04,sparkly\nE,2026-09-05,\n'
+    );
+    expect(events.map((e) => e.color)).toEqual(['#22c55e', '#a855f7', '#ff00aa', null, null]);
+  });
+
   test('missing required columns fails clearly', () => {
     const { events, errors } = csvToEvents('name,place\nX,Y\n');
     expect(events).toHaveLength(0);

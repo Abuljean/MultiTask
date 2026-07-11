@@ -10,9 +10,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { useUndoToast } from '@/components/undo-toast';
-import { csvToEvents, type CsvImportResult } from '@/lib/events/csv';
+import { csvToEvents, NAMED_EVENT_COLORS, type CsvImportResult } from '@/lib/events/csv';
 import { useDeleteAllEvents, useEvents, useImportEvents } from '@/lib/events/use-events';
 import { useTheme } from '@/lib/theme/use-theme';
+
+// Swatches for the whole-import default (rows with their own color column
+// keep it). First option = the theme's standard event blue (stored as null
+// so it adapts to dark mode).
+const COLOR_CHOICES = ['red', 'orange', 'yellow', 'green', 'teal', 'indigo', 'purple', 'pink'].map(
+  (name) => NAMED_EVENT_COLORS[name]
+);
 
 export default function ImportEventsScreen() {
   const router = useRouter();
@@ -27,6 +34,7 @@ export default function ImportEventsScreen() {
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<CsvImportResult | null>(null);
+  const [defaultColor, setDefaultColor] = useState<string | null>(null);
 
   // Sheet enter/exit — same shell as the task form.
   const sheetOffset = useSharedValue(screenHeight);
@@ -71,7 +79,7 @@ export default function ImportEventsScreen() {
   function runImport() {
     if (!parsed || parsed.events.length === 0) return;
     importEvents.mutate(
-      { events: parsed.events, source: fileName ?? 'import.csv' },
+      { events: parsed.events, source: fileName ?? 'import.csv', defaultColor },
       {
         onSuccess: (count) => {
           toast.show({ message: `${count} event${count === 1 ? '' : 's'} imported.` });
@@ -116,8 +124,52 @@ export default function ImportEventsScreen() {
         ]}>
         <Text style={[type.h2, { color: colors.textPrimary }]}>Import calendar events</Text>
         <Text style={[type.body, { color: colors.textSecondary }]}>
-          A CSV with columns like title, date, start time, end time, location. Dates as 2026-09-01 or
-          9/1/2026 (month first); rows without a time become all-day events.
+          A CSV with columns like title, date, start time, end time, location, color. Rows without a
+          time become all-day events.
+        </Text>
+        <Pressable
+          onPress={() => router.push('/import-help')}
+          accessibilityRole="button"
+          style={{ paddingVertical: space.s1 }}>
+          <Text style={[type.body, { color: colors.accent }]}>How do I make a CSV? (with an AI prompt)</Text>
+        </Pressable>
+
+        <Text style={[type.caption, { color: colors.textSecondary }]}>Event color</Text>
+        <View style={[styles.swatchRow, { gap: space.s2 }]}>
+          <Pressable
+            onPress={() => setDefaultColor(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Default blue"
+            accessibilityState={{ selected: defaultColor === null }}
+            style={[
+              styles.swatch,
+              {
+                backgroundColor: colors.statusEventAccent,
+                borderWidth: defaultColor === null ? 2.5 : 0,
+                borderColor: colors.textPrimary,
+              },
+            ]}
+          />
+          {COLOR_CHOICES.map((hex) => (
+            <Pressable
+              key={hex}
+              onPress={() => setDefaultColor(hex)}
+              accessibilityRole="button"
+              accessibilityLabel={`Color ${hex}`}
+              accessibilityState={{ selected: defaultColor === hex }}
+              style={[
+                styles.swatch,
+                {
+                  backgroundColor: hex,
+                  borderWidth: defaultColor === hex ? 2.5 : 0,
+                  borderColor: colors.textPrimary,
+                },
+              ]}
+            />
+          ))}
+        </View>
+        <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400' }]}>
+          Applies to rows without their own color column.
         </Text>
 
         <Pressable
@@ -199,5 +251,14 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  swatchRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  swatch: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
 });

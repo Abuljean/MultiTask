@@ -16,6 +16,7 @@ export function eventTimeLabel(event: CalendarEvent): string {
 export function EventCard({ event, onPress }: { event: CalendarEvent; onPress?: (event: CalendarEvent) => void }) {
   const { colors, space, radius, type, monoFont } = useTheme();
   const timeLabel = eventTimeLabel;
+  const accent = event.color ?? colors.statusEventAccent;
   return (
     <Pressable
       onPress={onPress && (() => onPress(event))}
@@ -25,7 +26,7 @@ export function EventCard({ event, onPress }: { event: CalendarEvent; onPress?: 
         styles.card,
         {
           backgroundColor: colors.surfaceElevated,
-          borderColor: colors.statusEventAccent,
+          borderColor: accent,
           borderRadius: radius.card,
           padding: space.s4,
         },
@@ -33,7 +34,7 @@ export function EventCard({ event, onPress }: { event: CalendarEvent; onPress?: 
       <Text numberOfLines={2} style={[type.h2, { color: colors.textPrimary }]}>
         {event.title}
       </Text>
-      <Text style={{ fontFamily: monoFont, fontSize: 12, lineHeight: 16, color: colors.statusEventAccent }}>
+      <Text style={{ fontFamily: monoFont, fontSize: 12, lineHeight: 16, color: accent }}>
         {timeLabel(event)}
       </Text>
       {event.location && (

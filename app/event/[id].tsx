@@ -79,6 +79,7 @@ export default function EventDetailScreen() {
     day: 'numeric',
     year: 'numeric',
   });
+  const accent = event.color ?? colors.statusEventAccent;
 
   return (
     <View style={styles.container}>
@@ -93,7 +94,7 @@ export default function EventDetailScreen() {
             borderLeftWidth: 1.5,
             borderRightWidth: 1.5,
             borderStyle: 'dashed',
-            borderColor: colors.statusEventAccent,
+            borderColor: accent,
             borderTopLeftRadius: radius.card,
             borderTopRightRadius: radius.card,
             padding: space.s4,
@@ -105,7 +106,7 @@ export default function EventDetailScreen() {
 
         <View style={{ gap: space.s1 }}>
           <Text style={[type.body, { color: colors.textSecondary }]}>{dateLabel}</Text>
-          <Text style={{ fontFamily: monoFont, fontSize: 13, lineHeight: 18, color: colors.statusEventAccent }}>
+          <Text style={{ fontFamily: monoFont, fontSize: 13, lineHeight: 18, color: accent }}>
             {eventTimeLabel(event)}
           </Text>
         </View>

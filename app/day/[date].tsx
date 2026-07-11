@@ -10,9 +10,11 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { EventCard } from '@/components/event-card';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTaskActions } from '@/hooks/use-task-actions';
+import { useEvents } from '@/lib/events/use-events';
 import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
 import { useTasks } from '@/lib/tasks/use-tasks';
@@ -40,6 +42,15 @@ export default function DayScreen() {
         .filter((t) => !t.deletedAt && t.dueDate && localDateKey(t.dueDate) === date)
         .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0)),
     [tasks, date]
+  );
+
+  const { data: events } = useEvents();
+  const dayEvents = useMemo(
+    () =>
+      (events ?? [])
+        .filter((e) => localDateKey(e.start) === date)
+        .sort((a, b) => a.start.getTime() - b.start.getTime()),
+    [events, date]
   );
 
   // Zoom in on entry, zoom back out on exit — anchored on the tapped cell,
@@ -142,8 +153,21 @@ export default function DayScreen() {
               scrollEventThrottle={16}
               contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3 }}
               showsVerticalScrollIndicator={false}>
+              {dayEvents.length > 0 && (
+                <>
+                  <Text style={[type.h2, { color: colors.textSecondary }]}>Schedule</Text>
+                  {dayEvents.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                  {dayTasks.length > 0 && (
+                    <Text style={[type.h2, { color: colors.textSecondary, marginTop: space.s2 }]}>Tasks</Text>
+                  )}
+                </>
+              )}
               {dayTasks.length === 0 ? (
-                <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
+                dayEvents.length === 0 ? (
+                  <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
+                ) : null
               ) : (
                 dayTasks.map((task) => (
                   <SwipeableTaskCard

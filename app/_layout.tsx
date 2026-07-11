@@ -59,6 +59,10 @@ function RootNavigator() {
           name="day/[date]"
           options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }}
         />
+        <Stack.Screen
+          name="import-events"
+          options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />

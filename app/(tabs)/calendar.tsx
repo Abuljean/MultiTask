@@ -12,6 +12,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
+import { eventsByDay, useEvents } from '@/lib/events/use-events';
 import { buildMonthMatrix, localDateKey, tasksByDay } from '@/lib/tasks/calendar';
 import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
@@ -62,6 +63,8 @@ export default function CalendarScreen() {
   const visibleMonthRef = useRef<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });
 
   const byDay = useMemo(() => tasksByDay(tasks ?? []), [tasks]);
+  const { data: events } = useEvents();
+  const eventDays = useMemo(() => eventsByDay(events ?? []), [events]);
 
   const monthItems = useMemo<MonthItem[]>(() => {
     const items: MonthItem[] = [];
@@ -179,6 +182,7 @@ export default function CalendarScreen() {
     }
     const key = localDateKey(date);
     const dayTasks = byDay.get(key) ?? [];
+    const dayEventCount = eventDays.get(key)?.length ?? 0;
     const isToday = key === todayKey;
     const hasOverdue = dayTasks.some((t) => deriveStatus(t) === 'overdue');
     return (
@@ -223,6 +227,10 @@ export default function CalendarScreen() {
           </Text>
         </View>
         <View style={styles.dotRow}>
+          {/* Events are visually distinct: hollow blue ring vs solid task dots. */}
+          {dayEventCount > 0 && (
+            <View style={[styles.eventRing, { borderColor: colors.statusEventAccent }]} />
+          )}
           {dayTasks.slice(0, 3).map((t) => (
             <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
           ))}
@@ -357,6 +365,13 @@ export default function CalendarScreen() {
         ) : (
           <Text style={[type.body, { color: colors.textSecondary }]}>Years</Text>
         )}
+        <Pressable
+          onPress={() => router.push('/import-events')}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Import calendar events">
+          <IconSymbol name="tray.and.arrow.down" size={20} color={colors.accent} />
+        </Pressable>
       </View>
 
       <Animated.View style={[styles.zoomContainer, zoomStyle]}>
@@ -405,6 +420,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   yearButton: {
     flexDirection: 'row',
@@ -439,6 +455,7 @@ const styles = StyleSheet.create({
     minHeight: 8,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
+  eventRing: { width: 7, height: 7, borderRadius: 4, borderWidth: 1.5 },
   monthGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EventCard } from '@/components/event-card';
 import { SwipeableRow } from '@/components/swipeable-row';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -24,6 +25,8 @@ import { useUndoToast } from '@/components/undo-toast';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { animateListChanges } from '@/lib/animate-layout';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
+import { useEvents } from '@/lib/events/use-events';
+import { localDateKey } from '@/lib/tasks/calendar';
 import {
   useAddRecurringTask,
   useArchiveRecurringTask,
@@ -62,6 +65,15 @@ export default function DailyScreen() {
       setPullRefreshing(false);
     }
   }
+
+  // The uploaded daily schedule (handoff MUST): today's imported events.
+  const { data: events } = useEvents();
+  const todaysEvents = useMemo(() => {
+    const todayKey = localDateKey(new Date());
+    return (events ?? [])
+      .filter((e) => localDateKey(e.start) === todayKey)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [events]);
 
   // Due today = not deleted, not completed, has a due date before tomorrow
   // (overdue included). Completed today's tasks live on the Tasks tab.
@@ -246,6 +258,20 @@ export default function DailyScreen() {
               </Pressable>
             )}
           </View>
+        )}
+
+        {/* ------------------------- Schedule -------------------------- */}
+        {todaysEvents.length > 0 && (
+          <>
+            <Text style={[type.h2, { color: colors.textSecondary, marginTop: space.s6, marginBottom: space.s2 }]}>
+              Schedule
+            </Text>
+            <View style={{ gap: space.s2 }}>
+              {todaysEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
+              ))}
+            </View>
+          </>
         )}
 
         {/* ------------------------- Due today ------------------------- */}

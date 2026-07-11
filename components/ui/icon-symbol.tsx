@@ -31,6 +31,7 @@ const MAPPING = {
   'chevron.left': 'chevron-left',
   'gearshape.fill': 'settings',
   magnifyingglass: 'search',
+  'tray.and.arrow.down': 'download',
 } as IconMapping;
 
 /**

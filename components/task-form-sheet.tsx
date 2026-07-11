@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Keyboard,
   Platform,
   Pressable,
@@ -22,6 +23,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -77,7 +79,7 @@ function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCr
     <View style={{ gap: space.s2 }}>
       <TextInput
         style={{
-          height: 40,
+          minHeight: 40,
           borderWidth: 1,
           borderColor: colors.borderSubtle,
           borderRadius: radius.button,
@@ -205,6 +207,43 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     );
   }
 
+  // Data-loss guard (HIG: confirm dismissal when unsaved changes loom).
+  // "Dirty" = any field differs from what the sheet opened with.
+  const isDirty =
+    title !== (initial?.title ?? '') ||
+    description !== (initial?.description ?? '') ||
+    priority !== (initial?.priority ?? null) ||
+    (category?.name ?? null) !== (initial?.category?.name ?? null) ||
+    (subject?.name ?? null) !== (initial?.subject?.name ?? null) ||
+    (dueDate?.getTime() ?? null) !== (initial?.dueDate?.getTime() ?? null);
+
+  function maybeClose() {
+    if (!isDirty) {
+      close();
+      return;
+    }
+    sheetOffset.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
+    Alert.alert('Discard changes?', undefined, [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: close },
+    ]);
+  }
+
+  // The grabber is honest now: drag the sheet down to dismiss (follows the
+  // finger; springs back below the threshold; confirms when dirty).
+  const grabberPan = Gesture.Pan()
+    .activeOffsetY(12)
+    .onUpdate((event) => {
+      sheetOffset.value = Math.max(0, event.translationY);
+    })
+    .onEnd((event) => {
+      if (event.translationY > 120 || event.velocityY > 800) {
+        runOnJS(maybeClose)();
+      } else {
+        sheetOffset.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
+      }
+    });
+
   function submit() {
     const trimmed = title.trim();
     if (!trimmed) return;
@@ -297,7 +336,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
           backgroundColor: selected ? colors.accentMuted : 'transparent',
           borderRadius: radius.button,
           paddingHorizontal: space.s3,
-          height: 40,
+          minHeight: 40,
           justifyContent: 'center',
           flexDirection: 'row',
           alignItems: 'center',
@@ -314,8 +353,9 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
-      {/* Tap outside to cancel — the ONLY way to dismiss besides submit. */}
-      <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close" />
+      {/* Tap outside (or drag the grabber down) to cancel; unsaved changes
+          get a discard confirmation. */}
+      <Pressable style={styles.backdropTouch} onPress={maybeClose} accessibilityLabel="Close" />
       <Animated.View
         style={[
           styles.sheet,
@@ -328,7 +368,11 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             paddingBottom: keyboardHeight > 0 ? keyboardHeight + space.s3 : Math.max(insets.bottom, space.s4),
           },
         ]}>
-        <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
+        <GestureDetector gesture={grabberPan}>
+          <View style={styles.grabberZone} accessibilityLabel="Drag down to close" accessibilityRole="adjustable">
+            <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
+          </View>
+        </GestureDetector>
 
         <ScrollView
           style={{ maxHeight: maxBodyHeight }}
@@ -570,17 +614,22 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
   },
+  grabberZone: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingTop: 2,
+    paddingBottom: 12,
+  },
   grabber: {
-    alignSelf: 'center',
     width: 36,
     height: 4,
     borderRadius: 999,
-    marginBottom: 12,
   },
   titleInput: {
-    height: 44,
+    minHeight: 44, // min, not fixed: Dynamic Type must grow rows, not clip
     borderWidth: 1,
     fontSize: 15,
+    paddingVertical: 10,
   },
   chipRow: {
     flexDirection: 'row',
@@ -607,7 +656,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   submitButton: {
-    height: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

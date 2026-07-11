@@ -106,7 +106,7 @@ surface-sunken       = #F4F3F0
 
 text-primary         = #1A1A1D   ← near-black, warm
 text-secondary       = #5C5A55
-text-tertiary        = #8A857D
+text-tertiary        = #75706A   ← darkened 2026-07-10 (was #8A857D, only 3.2:1): tertiary appears at caption sizes → needs 4.5:1
 text-on-accent       = #FFFFFF
 
 border-subtle        = #E8E5DE
@@ -133,7 +133,7 @@ surface-sunken       = #0F1013
 
 text-primary         = #E8E6E1   ← NOT pure white. Slightly warm off-white.
 text-secondary       = #A6A29B
-text-tertiary        = #7A756D
+text-tertiary        = #8F8A82   ← lightened 2026-07-10 (was #7A756D, 4.0:1) for 4.5:1+ at caption sizes
 text-on-accent       = #FFFFFF
 
 border-subtle        = #2A2B30

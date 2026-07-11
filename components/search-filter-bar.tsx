@@ -50,7 +50,7 @@ export function SearchFilterBar({ filters, onChange, panelOpen, onTogglePanel, c
           backgroundColor: selected ? colors.accentMuted : 'transparent',
           borderRadius: radius.button,
           paddingHorizontal: space.s3,
-          height: 36,
+          minHeight: 36,
           justifyContent: 'center',
           flexDirection: 'row',
           alignItems: 'center',
@@ -181,9 +181,10 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 40,
+    minHeight: 40,
     borderWidth: 1,
     fontSize: 15,
+    paddingVertical: 8,
   },
   filterButton: {
     flexDirection: 'row',

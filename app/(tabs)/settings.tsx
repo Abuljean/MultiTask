@@ -226,7 +226,7 @@ export default function SettingsScreen() {
                   backgroundColor: selected ? colors.accentMuted : 'transparent',
                   borderRadius: radius.button,
                   paddingHorizontal: space.s4,
-                  height: 40,
+                  minHeight: 40,
                   justifyContent: 'center',
                 }}>
                 <Text style={[type.body, { color: selected ? colors.accent : colors.textPrimary }]}>
@@ -289,7 +289,7 @@ export default function SettingsScreen() {
                   backgroundColor: selected ? colors.accentMuted : 'transparent',
                   borderRadius: radius.button,
                   paddingHorizontal: space.s4,
-                  height: 40,
+                  minHeight: 40,
                   justifyContent: 'center',
                 }}>
                 <Text style={[type.body, { color: selected ? colors.accent : colors.textPrimary }]}>

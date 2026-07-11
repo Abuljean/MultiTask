@@ -5,7 +5,8 @@
 // replaces the native push animation).
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -53,10 +54,15 @@ export default function DayScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Drag-down-to-dismiss from the header (restores a standard escape gesture
+  // after the zoom transition replaced the native back-swipe — HIG audit).
+  const dragY = useSharedValue(0);
+  const { height: windowHeight } = useWindowDimensions();
+
   const zoomStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
     transformOrigin: hasAnchor ? `${anchorX}px ${anchorY}px 0` : '50% 50% 0',
-    transform: [{ scale: scale.value }],
+    transform: [{ translateY: dragY.value }, { scale: scale.value }],
   }));
 
   function goBack() {
@@ -70,25 +76,46 @@ export default function DayScreen() {
     });
   }
 
+  const headerPan = Gesture.Pan()
+    .activeOffsetY(12)
+    .onUpdate((event) => {
+      dragY.value = Math.max(0, event.translationY);
+    })
+    .onEnd((event) => {
+      if (event.translationY > 120 || event.velocityY > 800) {
+        // Continue the slide off the bottom, then pop.
+        dragY.value = withTiming(windowHeight, { duration: 220, easing: Easing.in(Easing.cubic) });
+        opacity.value = withTiming(0, { duration: 220 }, (finished) => {
+          if (finished) runOnJS(goBack)();
+        });
+      } else {
+        dragY.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
+      }
+    });
+
   const title = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
     <Animated.View
       style={[styles.screen, zoomStyle, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-      <View style={[styles.header, { paddingHorizontal: space.s4, paddingVertical: space.s2, gap: space.s2 }]}>
-        <Pressable
-          onPress={close}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Back to calendar"
-          style={styles.backButton}>
-          <IconSymbol name="chevron.left" size={20} color={colors.accent} />
-          <Text style={[type.body, { color: colors.accent, fontWeight: '600' }]}>Calendar</Text>
-        </Pressable>
-      </View>
-      <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
-        {title}
-      </Text>
+      <GestureDetector gesture={headerPan}>
+        <View>
+          <View style={[styles.header, { paddingHorizontal: space.s4, paddingVertical: space.s2, gap: space.s2 }]}>
+            <Pressable
+              onPress={close}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Back to calendar"
+              style={styles.backButton}>
+              <IconSymbol name="chevron.left" size={20} color={colors.accent} />
+              <Text style={[type.body, { color: colors.accent, fontWeight: '600' }]}>Calendar</Text>
+            </Pressable>
+          </View>
+          <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
+            {title}
+          </Text>
+        </View>
+      </GestureDetector>
       <ScrollView
         contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3 }}
         showsVerticalScrollIndicator={false}>

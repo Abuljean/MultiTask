@@ -205,8 +205,10 @@ export default function CalendarScreen() {
         <View style={[styles.dayNumberWrap, isToday && { backgroundColor: colors.accent, borderRadius: 999 }]}>
           {/* Only the CURRENT month's days are full-color; every other
               month's days are greyed (developer pick — orientation while
-              scrolling). */}
+              scrolling). Font scaling is clamped: the grid's geometry is
+              fixed (scroll math), so text can't be allowed to break it. */}
           <Text
+            maxFontSizeMultiplier={1.4}
             style={{
               fontSize: 15,
               lineHeight: 20,
@@ -240,6 +242,7 @@ export default function CalendarScreen() {
         {/* Current month reads full-color; all others grey — the scroll
             position IS the navigation, so color marks "you are here". */}
         <Text
+          maxFontSizeMultiplier={1.4}
           style={[
             type.h2,
             styles.monthHeader,
@@ -249,7 +252,10 @@ export default function CalendarScreen() {
         </Text>
         <View style={styles.weekRow}>
           {WEEKDAY_LABELS.map((label, i) => (
-            <Text key={i} style={[type.caption, styles.weekdayLabel, { color: colors.textTertiary }]}>
+            <Text
+              key={i}
+              maxFontSizeMultiplier={1.4}
+              style={[type.caption, styles.weekdayLabel, { color: colors.textTertiary }]}>
               {label}
             </Text>
           ))}
@@ -315,10 +321,12 @@ export default function CalendarScreen() {
                 ]}>
                 {/* Past/future YEARS read grey; only the current year's
                     months are full-color (developer pick). */}
-                <Text style={[type.h2, { color: isCurrentYear ? colors.textPrimary : colors.textTertiary }]}>
+                <Text
+                  maxFontSizeMultiplier={1.4}
+                  style={[type.h2, { color: isCurrentYear ? colors.textPrimary : colors.textTertiary }]}>
                   {name.slice(0, 3)}
                 </Text>
-                <Text style={[type.caption, { color: colors.textTertiary }]}>
+                <Text maxFontSizeMultiplier={1.4} style={[type.caption, { color: colors.textTertiary }]}>
                   {count === 0 ? '—' : `${count} task${count === 1 ? '' : 's'}`}
                 </Text>
               </Pressable>

@@ -5,12 +5,14 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useNotificationNavigation } from '@/hooks/use-notification-navigation';
 import { useNotificationSync } from '@/hooks/use-notification-sync';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  // Tabs only render when signed in, so this syncs exactly when it should.
+  // Tabs only render when signed in, so these run exactly when they should.
   useNotificationSync();
+  useNotificationNavigation();
 
   return (
     <Tabs

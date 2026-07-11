@@ -33,8 +33,9 @@ export function PriorityBadge({ priority }: { priority: number }) {
 
 const styles = StyleSheet.create({
   pill: {
-    height: 20,
+    minHeight: 20, // grows with Dynamic Type instead of clipping
     paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 999,
     borderWidth: 1,
     justifyContent: 'center',

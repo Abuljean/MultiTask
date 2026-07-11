@@ -92,7 +92,9 @@ export const lightColors: ThemeColors = {
   surfaceSunken: '#F4F3F0',
   textPrimary: '#1A1A1D',
   textSecondary: '#5C5A55',
-  textTertiary: '#8A857D',
+  // Darkened from #8A857D (3.2:1) on 2026-07-10 — tertiary text appears at
+  // caption sizes, which need 4.5:1 (HIG audit). Now ≈4.8:1 on surface.
+  textTertiary: '#75706A',
   textOnAccent: '#FFFFFF',
   borderSubtle: '#E8E5DE',
   accent: '#3D4A7A',
@@ -112,7 +114,8 @@ export const darkColors: ThemeColors = {
   surfaceSunken: '#0F1013',
   textPrimary: '#E8E6E1', // NOT pure white
   textSecondary: '#A6A29B',
-  textTertiary: '#7A756D',
+  // Lightened from #7A756D (4.0:1) on 2026-07-10 for 4.5:1+ at caption sizes.
+  textTertiary: '#8F8A82',
   textOnAccent: '#FFFFFF',
   borderSubtle: '#2A2B30',
   accent: '#7C8BC4', // lightened indigo, still desaturated

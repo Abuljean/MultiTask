@@ -4,7 +4,7 @@
 // deleted." — never apologetic. One provider at the root; screens call
 // useUndoToast().show(...).
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
 
@@ -40,6 +40,10 @@ export function UndoToastProvider({ children }: PropsWithChildren) {
     (next: ToastContent) => {
       clearTimer();
       setContent(next);
+      // Screen readers can't see the toast — announce it (HIG audit fix).
+      AccessibilityInfo.announceForAccessibility(
+        next.onUndo ? `${next.message} Undo button available.` : next.message
+      );
       timer.current = setTimeout(() => setContent(null), TOAST_DURATION_MS);
     },
     [clearTimer]

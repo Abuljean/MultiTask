@@ -112,6 +112,12 @@ export async function syncTaskNotifications(
   type Planned = { at: number; title: string; body: string; taskId: number; kind: string };
   const planned: Planned[] = [];
 
+  // App badge = overdue count (HIG: badges communicate meaningful counts).
+  const overdueCount = tasks.filter(
+    (t) => !t.isCompleted && !t.deletedAt && t.dueDate && t.dueDate.getTime() < now
+  ).length;
+  Notifications.setBadgeCountAsync(overdueCount).catch(() => {});
+
   for (const task of tasks) {
     if (task.isCompleted || task.deletedAt || !task.dueDate) continue;
     const due = task.dueDate.getTime();

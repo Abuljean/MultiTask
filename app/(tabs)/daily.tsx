@@ -279,7 +279,8 @@ const styles = StyleSheet.create({
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 48,
+    minHeight: 48, // min, not fixed: Dynamic Type grows rows
+    paddingVertical: 8,
     borderRadius: 999, // pill-shaped per the design doc — distinct from task cards
     borderWidth: 1,
   },
@@ -291,7 +292,8 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   addInput: {
-    height: 44,
+    minHeight: 44,
+    paddingVertical: 10,
     borderWidth: 1,
     borderRadius: 999,
     fontSize: 15,

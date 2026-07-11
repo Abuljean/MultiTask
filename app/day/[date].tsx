@@ -76,13 +76,32 @@ export default function DayScreen() {
     });
   }
 
-  const headerPan = Gesture.Pan()
+  // The ENTIRE page is the drag surface (developer request). The pan runs
+  // simultaneously with the inner scroll but only engages while the list sits
+  // at the top — mid-list, dragging scrolls as normal. `dragBase` marks where
+  // in the gesture the list reached the top, so the page never jumps.
+  const scrollTop = useSharedValue(0);
+  const dragBase = useSharedValue(-1);
+  const scrollGesture = Gesture.Native();
+
+  const pagePan = Gesture.Pan()
     .activeOffsetY(12)
+    .failOffsetX([-14, 14]) // horizontal stays with the card swipes
+    .simultaneousWithExternalGesture(scrollGesture)
+    .onStart(() => {
+      dragBase.value = -1;
+    })
     .onUpdate((event) => {
-      dragY.value = Math.max(0, event.translationY);
+      if (scrollTop.value <= 0.5 && event.translationY > 0) {
+        if (dragBase.value < 0) dragBase.value = event.translationY;
+        dragY.value = Math.max(0, event.translationY - dragBase.value);
+      } else {
+        dragBase.value = -1;
+        dragY.value = 0;
+      }
     })
     .onEnd((event) => {
-      if (event.translationY > 120 || event.velocityY > 800) {
+      if (dragY.value > 120 || (dragY.value > 30 && event.velocityY > 800)) {
         // Continue the slide off the bottom, then pop.
         dragY.value = withTiming(windowHeight, { duration: 220, easing: Easing.in(Easing.cubic) });
         opacity.value = withTiming(0, { duration: 220 }, (finished) => {
@@ -98,8 +117,8 @@ export default function DayScreen() {
   return (
     <Animated.View
       style={[styles.screen, zoomStyle, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-      <GestureDetector gesture={headerPan}>
-        <View>
+      <GestureDetector gesture={pagePan}>
+        <View style={styles.pageFill}>
           <View style={[styles.header, { paddingHorizontal: space.s4, paddingVertical: space.s2, gap: space.s2 }]}>
             <Pressable
               onPress={close}
@@ -114,33 +133,41 @@ export default function DayScreen() {
           <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
             {title}
           </Text>
+          <GestureDetector gesture={scrollGesture}>
+            <ScrollView
+              bounces={false}
+              onScroll={(e) => {
+                scrollTop.value = e.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
+              contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3 }}
+              showsVerticalScrollIndicator={false}>
+              {dayTasks.length === 0 ? (
+                <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
+              ) : (
+                dayTasks.map((task) => (
+                  <SwipeableTaskCard
+                    key={task.id}
+                    task={task}
+                    onSwipeRight={handleSwipeRight}
+                    onSwipeLeft={handleSwipeLeft}
+                    onPress={(t) => router.push(`/task/${t.id}`)}
+                    enterFrom={getEnterFrom(task.id)}
+                    onEntered={clearEnterMark}
+                  />
+                ))
+              )}
+            </ScrollView>
+          </GestureDetector>
         </View>
       </GestureDetector>
-      <ScrollView
-        contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3 }}
-        showsVerticalScrollIndicator={false}>
-        {dayTasks.length === 0 ? (
-          <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
-        ) : (
-          dayTasks.map((task) => (
-            <SwipeableTaskCard
-              key={task.id}
-              task={task}
-              onSwipeRight={handleSwipeRight}
-              onSwipeLeft={handleSwipeLeft}
-              onPress={(t) => router.push(`/task/${t.id}`)}
-              enterFrom={getEnterFrom(task.id)}
-              onEntered={clearEnterMark}
-            />
-          ))
-        )}
-      </ScrollView>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  pageFill: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

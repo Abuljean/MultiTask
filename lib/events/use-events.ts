@@ -82,6 +82,21 @@ export function useImportEvents() {
   });
 }
 
+export function useDeleteEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { error } = await supabase.from('event').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: EVENTS_KEY });
+      queryClient.setQueryData<CalendarEvent[]>(EVENTS_KEY, (old) => old?.filter((e) => e.id !== id));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: EVENTS_KEY }),
+  });
+}
+
 export function useDeleteAllEvents() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -157,7 +157,7 @@ export default function DayScreen() {
                 <>
                   <Text style={[type.h2, { color: colors.textSecondary }]}>Schedule</Text>
                   {dayEvents.map((event) => (
-                    <EventCard key={event.id} event={event} />
+                    <EventCard key={event.id} event={event} onPress={(e) => router.push(`/event/${e.id}`)} />
                   ))}
                   {dayTasks.length > 0 && (
                     <Text style={[type.h2, { color: colors.textSecondary, marginTop: space.s2 }]}>Tasks</Text>

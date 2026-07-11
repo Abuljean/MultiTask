@@ -2,21 +2,24 @@
 // event-accent blue, dashed border instead of a solid status bar, no pills,
 // no swipe actions). Events are a schedule, not a to-do: nothing to
 // complete, nothing to edit.
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import type { CalendarEvent } from '@/lib/events/use-events';
 import { useTheme } from '@/lib/theme/use-theme';
 
-function timeLabel(event: CalendarEvent): string {
+export function eventTimeLabel(event: CalendarEvent): string {
   if (event.allDay) return 'All day';
   const fmt = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return event.end ? `${fmt(event.start)} – ${fmt(event.end)}` : fmt(event.start);
 }
 
-export function EventCard({ event }: { event: CalendarEvent }) {
+export function EventCard({ event, onPress }: { event: CalendarEvent; onPress?: (event: CalendarEvent) => void }) {
   const { colors, space, radius, type, monoFont } = useTheme();
+  const timeLabel = eventTimeLabel;
   return (
-    <View
+    <Pressable
+      onPress={onPress && (() => onPress(event))}
+      accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={`Event: ${event.title}, ${timeLabel(event)}`}
       style={[
         styles.card,
@@ -38,7 +41,7 @@ export function EventCard({ event }: { event: CalendarEvent }) {
           {event.location}
         </Text>
       )}
-    </View>
+    </Pressable>
   );
 }
 

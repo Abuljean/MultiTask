@@ -63,6 +63,10 @@ function RootNavigator() {
           name="import-events"
           options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }}
         />
+        <Stack.Screen
+          name="event/[id]"
+          options={{ presentation: 'transparentModal', animation: 'none', headerShown: false }}
+        />
       </Stack.Protected>
       <Stack.Protected guard={!session}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />

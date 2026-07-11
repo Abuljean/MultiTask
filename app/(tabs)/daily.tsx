@@ -268,7 +268,7 @@ export default function DailyScreen() {
             </Text>
             <View style={{ gap: space.s2 }}>
               {todaysEvents.map((event) => (
-                <EventCard key={event.id} event={event} />
+                <EventCard key={event.id} event={event} onPress={(e) => router.push(`/event/${e.id}`)} />
               ))}
             </View>
           </>

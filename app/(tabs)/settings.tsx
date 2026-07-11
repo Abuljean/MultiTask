@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { InputPromptDialog, type PromptRequest } from '@/components/input-prompt';
 import { useUndoToast } from '@/components/undo-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useNotificationLead } from '@/hooks/use-notification-lead';
@@ -50,22 +51,29 @@ export default function SettingsScreen() {
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
   const deviceTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  /** iOS-native text prompt (Android gets these flows in a later pass). */
+  // Text prompts: iOS gets the native Alert.prompt; Android gets our
+  // cross-platform dialog (Alert.prompt doesn't exist there).
+  const [promptRequest, setPromptRequest] = useState<{
+    request: PromptRequest;
+    resolve: (value: string | null) => void;
+  } | null>(null);
+
   function prompt(title: string, message: string, secure = false): Promise<string | null> {
-    if (Platform.OS !== 'ios') {
-      toast.show({ message: 'This action is iOS-only for now.' });
-      return Promise.resolve(null);
+    if (Platform.OS === 'ios') {
+      return new Promise((resolve) => {
+        Alert.prompt(
+          title,
+          message,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+            { text: 'OK', onPress: (value?: string) => resolve(value?.trim() || null) },
+          ],
+          secure ? 'secure-text' : 'plain-text'
+        );
+      });
     }
     return new Promise((resolve) => {
-      Alert.prompt(
-        title,
-        message,
-        [
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-          { text: 'OK', onPress: (value?: string) => resolve(value?.trim() || null) },
-        ],
-        secure ? 'secure-text' : 'plain-text'
-      );
+      setPromptRequest({ request: { title, message, secure }, resolve });
     });
   }
 
@@ -313,6 +321,14 @@ export default function SettingsScreen() {
           Multitask (development build)
         </Text>
       </ScrollView>
+
+      <InputPromptDialog
+        request={promptRequest?.request ?? null}
+        onDone={(value) => {
+          promptRequest?.resolve(value);
+          setPromptRequest(null);
+        }}
+      />
     </View>
   );
 }

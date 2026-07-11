@@ -1,0 +1,16 @@
+# PowerSync sync rules for Multitask.
+# Paste into the PowerSync dashboard (Instance → Sync Rules) and deploy.
+#
+# One bucket per user, keyed by the Supabase Auth user id from the JWT —
+# this mirrors the RLS policies: every device syncs exactly its owner's
+# rows and nothing else. Writes still go through Supabase with RLS
+# enforcing the same wall server-side.
+
+bucket_definitions:
+  user_data:
+    parameters: select request.user_id() as user_id
+    data:
+      - select * from task where user_uuid = bucket.user_id
+      - select * from recurring_task where user_uuid = bucket.user_id
+      - select * from recurring_completion where user_uuid = bucket.user_id
+      - select * from event where user_uuid = bucket.user_id

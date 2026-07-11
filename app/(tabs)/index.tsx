@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Fab } from '@/components/fab';
 import { SearchFilterBar } from '@/components/search-filter-bar';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
+import { SyncStatusDot } from '@/components/sync-status-dot';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
@@ -240,13 +241,16 @@ export default function TaskListScreen() {
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
       <View style={[styles.titleRow, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
-        <Pressable
-          onPress={() => (searchVisible ? hideSearch() : showSearch())}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel={searchVisible ? 'Hide search' : 'Search tasks'}>
-          <IconSymbol name="magnifyingglass" size={20} color={searchVisible ? colors.accent : colors.textSecondary} />
-        </Pressable>
+        <View style={styles.titleActions}>
+          <SyncStatusDot />
+          <Pressable
+            onPress={() => (searchVisible ? hideSearch() : showSearch())}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={searchVisible ? 'Hide search' : 'Search tasks'}>
+            <IconSymbol name="magnifyingglass" size={20} color={searchVisible ? colors.accent : colors.textSecondary} />
+          </Pressable>
+        </View>
       </View>
 
       {isLoading ? (
@@ -326,6 +330,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  titleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

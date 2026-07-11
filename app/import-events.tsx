@@ -77,7 +77,7 @@ export default function ImportEventsScreen() {
           toast.show({ message: `${count} event${count === 1 ? '' : 's'} imported.` });
           close();
         },
-        onError: () => toast.show({ message: 'Import failed — is the event table set up (07)?' }),
+        onError: (error) => toast.show({ message: `Import failed: ${error.message}` }),
       }
     );
   }

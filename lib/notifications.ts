@@ -21,6 +21,7 @@ const SOURCE_TAG = 'multitask-task';
 
 /** One-time process setup: foreground display + Android channel. */
 export function initNotifications() {
+  if (Platform.OS === 'web') return; // scheduled notifications are native-only
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldPlaySound: true,
@@ -41,6 +42,7 @@ export function initNotifications() {
 /** True if we may schedule. Prompts the system dialog only the first time
  *  (undetermined); afterwards it defers to the OS-level setting. */
 export async function ensureNotificationPermission(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
   if (current.canAskAgain) {
@@ -51,6 +53,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 }
 
 export async function getNotificationPermissionStatus(): Promise<'granted' | 'denied' | 'undetermined'> {
+  if (Platform.OS === 'web') return 'denied';
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return 'granted';
   return current.canAskAgain ? 'undetermined' : 'denied';
@@ -68,6 +71,7 @@ function leadLabel(minutes: number): string {
  *  arrive with permission granted and the app backgrounded, the environment
  *  (e.g. Expo Go) can't deliver scheduled notifications at all. */
 export async function sendTestNotification(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
   const granted = await ensureNotificationPermission();
   if (!granted) return false;
   await Notifications.scheduleNotificationAsync({
@@ -88,6 +92,7 @@ export async function sendTestNotification(): Promise<boolean> {
 
 /** How many task notifications are currently scheduled (diagnostics). */
 export async function countScheduledTaskNotifications(): Promise<number> {
+  if (Platform.OS === 'web') return 0;
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   return scheduled.filter((n) => n.content.data?.source === SOURCE_TAG).length;
 }
@@ -98,6 +103,7 @@ export async function syncTaskNotifications(
   tasks: Task[],
   options: { urgencyThresholdHours: number; leadMinutes: number }
 ): Promise<void> {
+  if (Platform.OS === 'web') return;
   const permission = await Notifications.getPermissionsAsync();
   if (!permission.granted) return;
 

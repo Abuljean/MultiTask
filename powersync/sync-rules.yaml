@@ -10,7 +10,10 @@ bucket_definitions:
   user_data:
     parameters: select request.user_id() as user_id
     data:
-      - select * from task where user_uuid = bucket.user_id
+      # task's primary key is the legacy task_id — PowerSync requires every
+      # query to output an "id" column, hence the alias. The other tables'
+      # PKs are already named id.
+      - select task_id as id, * from task where user_uuid = bucket.user_id
       - select * from recurring_task where user_uuid = bucket.user_id
       - select * from recurring_completion where user_uuid = bucket.user_id
       - select * from event where user_uuid = bucket.user_id

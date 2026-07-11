@@ -107,3 +107,4 @@ Before shipping any screen, mentally check `docs/design/06-anti-generic.md`. The
   - `04-gestures-and-interaction.md` — swipe, drag, quick-add, keyboard on desktop.
   - `05-motion.md` — timing, easing, the transitions catalog.
   - `06-anti-generic.md` — the "don't ship it looking like every AI-generated app" checklist.
+  - `07-apple-hig-reference.md` — comprehensive Apple HIG reference (added by the developer 2026-07-10, covers all Apple platforms incl. the Liquid Glass era). Use it alongside 00–06 for design audits, and it becomes central again at the multiplatform/sync phase (iPad/macOS/watch conventions live there). Where it conflicts with 01-platforms, they mostly agree; developer decisions recorded in 02–05 win over both.

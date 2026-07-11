@@ -81,6 +81,41 @@ export type NewTask = {
   priority?: number | null;
 };
 
+/** Row shape from the LOCAL PowerSync SQLite database (sync mode): ids are
+ *  text, booleans are 0/1 integers, dates are the same strings Postgres
+ *  sends. Pure mapping — safe to import in Expo Go. */
+export type TaskSqliteRow = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  creation_date: string | null;
+  due_date: string | null;
+  is_completed: number | null;
+  subject: string | null;
+  subject_color: string | null;
+  category: string | null;
+  category_color: string | null;
+  priority: number | null;
+  deleted_at: string | null;
+};
+
+export function toTaskFromSqlite(row: TaskSqliteRow): Task {
+  return {
+    id: Number(row.id),
+    title: row.title ?? '',
+    description: row.description ?? '',
+    createdAt: row.creation_date ? new Date(row.creation_date) : new Date(),
+    dueDate: row.due_date ? parseWallClock(row.due_date) : null,
+    isCompleted: Boolean(row.is_completed),
+    subject: row.subject ?? '',
+    subjectColor: row.subject_color ?? DEFAULT_SUBJECT_COLOR,
+    category: row.category ?? DEFAULT_CATEGORY,
+    categoryColor: row.category_color ?? DEFAULT_CATEGORY_COLOR,
+    priority: row.priority,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
+  };
+}
+
 /** Every user-editable field, all explicit — the edit form always knows the
  *  full desired state (unlike quick-add, where omissions mean DB defaults). */
 export type TaskEdits = {

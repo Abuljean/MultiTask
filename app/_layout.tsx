@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { SyncBridge } from '@/components/sync-bridge';
 import { UndoToastProvider } from '@/components/undo-toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -94,6 +95,8 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <QueryClientProvider client={queryClient}>
+          {/* No-op in Expo Go; boots PowerSync in the dev build. */}
+          <SyncBridge />
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <UndoToastProvider>
               <RootNavigator />

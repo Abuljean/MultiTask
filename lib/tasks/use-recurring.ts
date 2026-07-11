@@ -1,10 +1,12 @@
 // Recurring daily tasks — the data behind the Daily view. A recurring task
 // is "done today" when a completion row exists for the device's current
-// calendar day (wall-clock semantics, like everything else). All mutations
-// are optimistic with rollback, matching use-tasks.ts.
+// calendar day. Dual-mode transport like use-tasks.ts: local SQLite when
+// PowerSync is active (dev build), Supabase REST otherwise (Expo Go).
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
+import { newNumericId, newUuid } from '@/lib/sync/ids';
+import { syncDb } from '@/lib/sync/system';
 
 export type RecurringTask = {
   id: number;
@@ -34,6 +36,24 @@ export function useRecurringTasks() {
 
 async function fetchRecurring(): Promise<RecurringTask[]> {
   const today = localDateKey();
+  const db = syncDb();
+  if (db) {
+    const tasks = await db.getAll<{ id: string; title: string; sort_order: number }>(
+      'SELECT id, title, sort_order FROM recurring_task WHERE archived_at IS NULL ORDER BY sort_order, created_at'
+    );
+    const done = await db.getAll<{ recurring_task_id: number }>(
+      'SELECT recurring_task_id FROM recurring_completion WHERE done_on = ?',
+      [today]
+    );
+    const doneIds = new Set(done.map((row) => Number(row.recurring_task_id)));
+    return tasks.map((row) => ({
+      id: Number(row.id),
+      title: row.title,
+      sortOrder: row.sort_order,
+      doneToday: doneIds.has(Number(row.id)),
+    }));
+  }
+
   const [tasksResult, completionsResult] = await Promise.all([
     supabase
       .from('recurring_task')
@@ -84,6 +104,14 @@ export function useAddRecurringTask() {
   return useMutation({
     mutationFn: async ({ title, sortOrder }: { title: string; sortOrder: number; tempId: number }) => {
       const userUuid = await currentUserUuid();
+      const db = syncDb();
+      if (db) {
+        await db.execute(
+          'INSERT INTO recurring_task (id, user_uuid, title, sort_order, created_at, archived_at) VALUES (?,?,?,?,?,NULL)',
+          [String(newNumericId()), userUuid, title, sortOrder, new Date().toISOString()]
+        );
+        return;
+      }
       const { error } = await supabase
         .from('recurring_task')
         .insert({ user_uuid: userUuid, title, sort_order: sortOrder });
@@ -104,6 +132,22 @@ export function useSetRecurringDone() {
   return useMutation({
     mutationFn: async ({ id, done }: { id: number; done: boolean }) => {
       const today = localDateKey();
+      const db = syncDb();
+      if (db) {
+        if (done) {
+          const userUuid = await currentUserUuid();
+          await db.execute(
+            'INSERT INTO recurring_completion (id, recurring_task_id, user_uuid, done_on) VALUES (?,?,?,?)',
+            [newUuid(), id, userUuid, today]
+          );
+        } else {
+          await db.execute('DELETE FROM recurring_completion WHERE recurring_task_id=? AND done_on=?', [
+            id,
+            today,
+          ]);
+        }
+        return;
+      }
       if (done) {
         const userUuid = await currentUserUuid();
         const { error } = await supabase
@@ -133,6 +177,14 @@ export function useArchiveRecurringTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE recurring_task SET archived_at=? WHERE id=?', [
+          new Date().toISOString(),
+          String(id),
+        ]);
+        return;
+      }
       const { error } = await supabase
         .from('recurring_task')
         .update({ archived_at: new Date().toISOString() })
@@ -145,12 +197,16 @@ export function useArchiveRecurringTask() {
   });
 }
 
-/** Undo for archive: flips archived_at back. The optimistic re-add restores
- *  the task the caller passes (same row, same id). */
+/** Undo for archive: flips archived_at back (same row, same id). */
 export function useUnarchiveRecurringTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (task: RecurringTask) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE recurring_task SET archived_at=NULL WHERE id=?', [String(task.id)]);
+        return;
+      }
       const { error } = await supabase.from('recurring_task').update({ archived_at: null }).eq('id', task.id);
       if (error) throw error;
     },

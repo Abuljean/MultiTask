@@ -1,9 +1,12 @@
 // Calendar events data access. Events are read-mostly: imported in batches
-// from CSV, listed on the calendar/Daily views, and deleted (individually
-// never — by entire import or all at once). No editing in-app by design.
+// from CSV, listed on the calendar/Daily views, and deleted. Dual-mode
+// transport like the task hooks: local SQLite when PowerSync is active
+// (dev build), Supabase REST otherwise (Expo Go).
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
+import { newNumericId } from '@/lib/sync/ids';
+import { syncDb } from '@/lib/sync/system';
 import { formatWallClock, parseWallClock } from '@/lib/tasks/dates';
 import type { ParsedEvent } from './csv';
 
@@ -32,6 +35,18 @@ type EventRow = {
   color?: string | null;
 };
 
+type EventSqliteRow = {
+  id: string;
+  title: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  all_day: number | null;
+  location: string | null;
+  notes: string | null;
+  source: string | null;
+  color: string | null;
+};
+
 function toEvent(row: EventRow): CalendarEvent {
   return {
     id: row.id,
@@ -46,6 +61,20 @@ function toEvent(row: EventRow): CalendarEvent {
   };
 }
 
+function toEventFromSqlite(row: EventSqliteRow): CalendarEvent {
+  return {
+    id: Number(row.id),
+    title: row.title ?? '',
+    start: row.start_at ? parseWallClock(row.start_at) : new Date(),
+    end: row.end_at ? parseWallClock(row.end_at) : null,
+    allDay: Boolean(row.all_day),
+    location: row.location,
+    notes: row.notes,
+    source: row.source,
+    color: row.color,
+  };
+}
+
 const EVENTS_KEY = ['events'] as const;
 
 export function useEvents() {
@@ -53,6 +82,11 @@ export function useEvents() {
 }
 
 async function fetchEvents(): Promise<CalendarEvent[]> {
+  const db = syncDb();
+  if (db) {
+    const rows = await db.getAll<EventSqliteRow>('SELECT * FROM event ORDER BY start_at');
+    return rows.map(toEventFromSqlite);
+  }
   const { data, error } = await supabase.from('event').select('*').order('start_at');
   if (error) throw error;
   return (data as EventRow[]).map(toEvent);
@@ -74,6 +108,34 @@ export function useImportEvents() {
       const { data } = await supabase.auth.getSession();
       const userUuid = data.session?.user.id;
       if (!userUuid) throw new Error('Not signed in');
+
+      const db = syncDb();
+      if (db) {
+        await db.writeTransaction(async (tx) => {
+          for (const e of events) {
+            await tx.execute(
+              `INSERT INTO event
+                 (id, user_uuid, title, start_at, end_at, all_day, location, notes, source, color, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+              [
+                String(newNumericId()),
+                userUuid,
+                e.title,
+                formatWallClock(e.start),
+                e.end ? formatWallClock(e.end) : null,
+                e.allDay ? 1 : 0,
+                e.location,
+                e.notes,
+                source,
+                e.color ?? defaultColor,
+                new Date().toISOString(),
+              ]
+            );
+          }
+        });
+        return events.length;
+      }
+
       const rows = events.map((e) => ({
         user_uuid: userUuid,
         title: e.title,
@@ -100,6 +162,11 @@ export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('DELETE FROM event WHERE id=?', [String(id)]);
+        return;
+      }
       const { error } = await supabase.from('event').delete().eq('id', id);
       if (error) throw error;
     },
@@ -115,6 +182,11 @@ export function useDeleteAllEvents() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('DELETE FROM event');
+        return;
+      }
       const { error } = await supabase.from('event').delete().gte('id', 0);
       if (error) throw error;
     },

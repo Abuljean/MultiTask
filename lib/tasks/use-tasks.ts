@@ -1,17 +1,34 @@
-// Task data access. TanStack Query owns caching; Supabase is the transport.
-// Every screen goes through these hooks — nothing else talks to the `task`
-// table. When offline sync lands (Stage 3), the local database slots in
-// behind these hooks and screens don't change.
-//
-// Mutations are OPTIMISTIC (docs/design/04: every action commits locally,
-// instantly). The pattern for each: cancel in-flight refetches → snapshot the
-// cache → apply the change to the cache immediately → roll back on error →
-// re-sync with the server when the dust settles.
+// Task data access. TanStack Query owns caching; the TRANSPORT is dual-mode:
+//   - Online mode (Expo Go / no PowerSync configured): Supabase REST, as
+//     always. RLS scopes everything server-side.
+//   - Sync mode (dev build + PowerSync): reads/writes hit the LOCAL SQLite
+//     database — instant and fully offline — and PowerSync replays writes
+//     to Supabase (through RLS) in the background. Remote changes arrive
+//     via components/sync-bridge.tsx, which invalidates these query keys.
+// Screens never know which mode is active; every hook branches internally
+// on syncDb(). All mutations stay optimistic — in sync mode that's belt and
+// suspenders (local writes are already instant).
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
-import { toInsertRow, toTask, toUpdateRow, type NewTask, type Task, type TaskEdits, type TaskRow } from './types';
+import { placeholders, syncDb } from '@/lib/sync/system';
+import { newNumericId } from '@/lib/sync/ids';
+import { formatWallClock } from './dates';
+import {
+  DEFAULT_CATEGORY,
+  DEFAULT_CATEGORY_COLOR,
+  DEFAULT_SUBJECT_COLOR,
+  toInsertRow,
+  toTask,
+  toTaskFromSqlite,
+  toUpdateRow,
+  type NewTask,
+  type Task,
+  type TaskEdits,
+  type TaskRow,
+  type TaskSqliteRow,
+} from './types';
 
 const TASKS_KEY = ['tasks'] as const;
 
@@ -20,6 +37,13 @@ export function useTasks() {
 }
 
 async function fetchTasks(): Promise<Task[]> {
+  const db = syncDb();
+  if (db) {
+    const rows = await db.getAll<TaskSqliteRow>(
+      'SELECT * FROM task ORDER BY due_date IS NULL, due_date'
+    );
+    return rows.map(toTaskFromSqlite);
+  }
   // RLS scopes this to the signed-in user's rows — no client-side filter
   // needed, and none COULD leak other users' data even if forgotten.
   const { data, error } = await supabase
@@ -58,12 +82,53 @@ async function currentUserUuid(): Promise<string> {
 /** Optimistic create: the caller supplies a temporary NEGATIVE id (so it can
  *  never collide with a real task_id and the caller can reference the row,
  *  e.g. for the entrance animation). The temp task shows instantly; on
- *  success it's swapped for the server row in place. */
+ *  success it's swapped for the created row in place. */
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ input }: { input: NewTask; tempId: number }) => {
       const userUuid = await currentUserUuid();
+      const db = syncDb();
+      if (db) {
+        const id = newNumericId();
+        const now = new Date();
+        const task: Task = {
+          id,
+          title: input.title,
+          description: input.description ?? '',
+          createdAt: now,
+          dueDate: input.dueDate,
+          isCompleted: false,
+          subject: input.subject ?? '',
+          subjectColor: input.subjectColor ?? DEFAULT_SUBJECT_COLOR,
+          category: input.category ?? DEFAULT_CATEGORY,
+          categoryColor: input.categoryColor ?? DEFAULT_CATEGORY_COLOR,
+          priority: input.priority ?? null,
+          deletedAt: null,
+        };
+        await db.execute(
+          `INSERT INTO task
+             (id, user_uuid, title, description, creation_date, due_date, is_completed,
+              subject, subject_color, category, category_color, priority, deleted_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            String(id),
+            userUuid,
+            task.title,
+            task.description,
+            now.toISOString(),
+            task.dueDate ? formatWallClock(task.dueDate) : null,
+            0,
+            task.subject,
+            task.subjectColor,
+            task.category,
+            task.categoryColor,
+            task.priority,
+            null,
+          ]
+        );
+        return task;
+      }
       // RLS's WITH CHECK verifies user_uuid === auth.uid() server-side.
       const { data, error } = await supabase
         .from('task')
@@ -84,16 +149,16 @@ export function useCreateTask() {
           dueDate: input.dueDate,
           isCompleted: false,
           subject: input.subject ?? '',
-          subjectColor: input.subjectColor ?? '#e5e7eb',
-          category: input.category ?? 'Uncategorized',
-          categoryColor: input.categoryColor ?? '#fef3c7',
+          subjectColor: input.subjectColor ?? DEFAULT_SUBJECT_COLOR,
+          category: input.category ?? DEFAULT_CATEGORY,
+          categoryColor: input.categoryColor ?? DEFAULT_CATEGORY_COLOR,
           priority: input.priority ?? null,
           deletedAt: null,
         },
       ]),
-    onSuccess: (serverTask, { tempId }) =>
+    onSuccess: (createdTask, { tempId }) =>
       queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
-        old?.map((t) => (t.id === tempId ? serverTask : t))
+        old?.map((t) => (t.id === tempId ? createdTask : t))
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
@@ -105,6 +170,25 @@ export function useUpdateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, edits }: { id: number; edits: TaskEdits }) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute(
+          `UPDATE task SET title=?, due_date=?, description=?, priority=?,
+             category=?, category_color=?, subject=?, subject_color=? WHERE id=?`,
+          [
+            edits.title,
+            edits.dueDate ? formatWallClock(edits.dueDate) : null,
+            edits.description,
+            edits.priority,
+            edits.category,
+            edits.categoryColor,
+            edits.subject,
+            edits.subjectColor,
+            String(id),
+          ]
+        );
+        return;
+      }
       const { error } = await supabase.from('task').update(toUpdateRow(edits)).eq('task_id', id);
       if (error) throw error;
     },
@@ -135,6 +219,11 @@ export function useSetTaskCompleted() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, isCompleted }: { id: number; isCompleted: boolean }) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE task SET is_completed=? WHERE id=?', [isCompleted ? 1 : 0, String(id)]);
+        return;
+      }
       const { error } = await supabase.from('task').update({ is_completed: isCompleted }).eq('task_id', id);
       if (error) throw error;
     },
@@ -146,12 +235,16 @@ export function useSetTaskCompleted() {
 }
 
 /** Soft delete: moves the task to the trash ("Deleted" section) by setting
- *  deleted_at. The row survives, so undo/restore is a trivial flip back —
- *  same id, nothing lost. Requires supabase/04-soft-delete.sql. */
+ *  deleted_at. The row survives, so undo/restore is a trivial flip back. */
 export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE task SET deleted_at=? WHERE id=?', [new Date().toISOString(), String(id)]);
+        return;
+      }
       const { error } = await supabase
         .from('task')
         .update({ deleted_at: new Date().toISOString() })
@@ -172,6 +265,11 @@ export function useRestoreTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE task SET deleted_at=NULL WHERE id=?', [String(id)]);
+        return;
+      }
       const { error } = await supabase.from('task').update({ deleted_at: null }).eq('task_id', id);
       if (error) throw error;
     },
@@ -182,12 +280,20 @@ export function useRestoreTask() {
   });
 }
 
-/** Bulk soft delete — "Clear all completed". One optimistic sweep, one
- *  server round-trip, and the undo toast restores the whole batch. */
+/** Bulk soft delete — "Clear all completed". One optimistic sweep; the undo
+ *  toast restores the whole batch. */
 export function useBulkSoftDeleteTasks() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ids: number[]) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute(
+          `UPDATE task SET deleted_at=? WHERE id IN (${placeholders(ids.length)})`,
+          [new Date().toISOString(), ...ids.map(String)]
+        );
+        return;
+      }
       const { error } = await supabase
         .from('task')
         .update({ deleted_at: new Date().toISOString() })
@@ -208,6 +314,14 @@ export function useBulkRestoreTasks() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ids: number[]) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute(
+          `UPDATE task SET deleted_at=NULL WHERE id IN (${placeholders(ids.length)})`,
+          ids.map(String)
+        );
+        return;
+      }
       const { error } = await supabase.from('task').update({ deleted_at: null }).in('task_id', ids);
       if (error) throw error;
     },
@@ -220,12 +334,16 @@ export function useBulkRestoreTasks() {
   });
 }
 
-/** Empty the trash — bulk permanent DELETE. Irreversible, so the caller
- *  confirms first (the one place a confirmation dialog is justified). */
+/** Empty the trash — bulk permanent DELETE. Irreversible; caller confirms. */
 export function useBulkPermanentlyDeleteTasks() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (ids: number[]) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute(`DELETE FROM task WHERE id IN (${placeholders(ids.length)})`, ids.map(String));
+        return;
+      }
       const { error } = await supabase.from('task').delete().in('task_id', ids);
       if (error) throw error;
     },
@@ -240,6 +358,11 @@ export function usePermanentlyDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: number) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('DELETE FROM task WHERE id=?', [String(id)]);
+        return;
+      }
       const { error } = await supabase.from('task').delete().eq('task_id', id);
       if (error) throw error;
     },

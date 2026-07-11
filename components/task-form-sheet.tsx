@@ -229,6 +229,48 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     ]);
   }
 
+  function submit() {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onSubmit({
+      title: trimmed,
+      dueDate,
+      description: description.trim(),
+      priority,
+      category,
+      subject,
+    });
+    close();
+  }
+
+  // Date/time picker reveal — animated height, slide open/closed.
+  const [picker, setPickerRaw] = useState<'date' | 'time' | null>(null);
+  const [renderedPicker, setRenderedPicker] = useState<'date' | 'time' | null>(null);
+  const pickerHeight = useSharedValue(0);
+  const PICKER_HEIGHTS = { date: 360, time: 216 } as const;
+
+  function setPicker(next: 'date' | 'time' | null) {
+    setPickerRaw(next);
+    if (Platform.OS !== 'ios') {
+      setRenderedPicker(next);
+      return;
+    }
+    if (next) {
+      setRenderedPicker(next);
+      pickerHeight.value = withTiming(PICKER_HEIGHTS[next], SLIDE);
+    } else {
+      pickerHeight.value = withTiming(0, SLIDE, (finished) => {
+        if (finished) runOnJS(setRenderedPicker)(null);
+      });
+    }
+  }
+
+  const pickerContainerStyle = useAnimatedStyle(() => ({
+    height: pickerHeight.value,
+    overflow: 'hidden',
+  }));
+
   // The WHOLE SHEET drags down to dismiss (developer request) — follows the
   // finger, springs back below the threshold, confirms when dirty. Runs
   // simultaneously with the body scroll but only engages while the scroll
@@ -273,48 +315,6 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
         sheetOffset.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
       }
     });
-
-  function submit() {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onSubmit({
-      title: trimmed,
-      dueDate,
-      description: description.trim(),
-      priority,
-      category,
-      subject,
-    });
-    close();
-  }
-
-  // Date/time picker reveal — animated height, slide open/closed.
-  const [picker, setPickerRaw] = useState<'date' | 'time' | null>(null);
-  const [renderedPicker, setRenderedPicker] = useState<'date' | 'time' | null>(null);
-  const pickerHeight = useSharedValue(0);
-  const PICKER_HEIGHTS = { date: 360, time: 216 } as const;
-
-  function setPicker(next: 'date' | 'time' | null) {
-    setPickerRaw(next);
-    if (Platform.OS !== 'ios') {
-      setRenderedPicker(next);
-      return;
-    }
-    if (next) {
-      setRenderedPicker(next);
-      pickerHeight.value = withTiming(PICKER_HEIGHTS[next], SLIDE);
-    } else {
-      pickerHeight.value = withTiming(0, SLIDE, (finished) => {
-        if (finished) runOnJS(setRenderedPicker)(null);
-      });
-    }
-  }
-
-  const pickerContainerStyle = useAnimatedStyle(() => ({
-    height: pickerHeight.value,
-    overflow: 'hidden',
-  }));
 
   function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
     if (event.type === 'dismissed') {

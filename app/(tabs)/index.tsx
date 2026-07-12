@@ -344,7 +344,11 @@ export default function TaskListScreen() {
         />
       )}
 
-      <Fab bottom={insets.bottom + 24} onPress={() => router.push('/quick-add')} />
+      <Fab
+        bottom={insets.bottom + (isDesktop ? 48 : 24)}
+        right={isDesktop ? 48 : 20}
+        onPress={() => router.push('/quick-add')}
+      />
     </View>
   );
 }

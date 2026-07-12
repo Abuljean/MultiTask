@@ -6,7 +6,16 @@ import { Pressable, StyleSheet } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/lib/theme/use-theme';
 
-export function Fab({ onPress, bottom }: { onPress: () => void; bottom: number }) {
+export function Fab({
+  onPress,
+  bottom,
+  right = 20,
+}: {
+  onPress: () => void;
+  bottom: number;
+  /** Desktop passes a larger inset — hugging the corner reads cramped there. */
+  right?: number;
+}) {
   const { colors } = useTheme();
   return (
     <Pressable
@@ -17,6 +26,7 @@ export function Fab({ onPress, bottom }: { onPress: () => void; bottom: number }
         styles.fab,
         {
           bottom,
+          right,
           backgroundColor: colors.accent,
           transform: [{ scale: pressed ? 0.9 : 1 }],
         },
@@ -29,7 +39,6 @@ export function Fab({ onPress, bottom }: { onPress: () => void; bottom: number }
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,

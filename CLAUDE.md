@@ -3,7 +3,7 @@
 This file gives Claude Code context at the start of every session. Keep it updated as the project progresses.
 
 ## What this project is
-**Multitask** (name may still change) — a cross-platform task manager. A web version already exists and is deployed; this repo is the new **native app** (React Native + Expo) that will share data with the web app via Supabase. The web app will eventually be **redesigned to match** the improved native design, so what you build here is the reference design for the whole product, not just the mobile client.
+**Multitask Manager** (developer's pick, 2026-07-12 — app.json `name`; the slug stays `multitask` for EAS/Expo Go linkage) — a cross-platform task manager. A web version already exists and is deployed; this repo is the new **native app** (React Native + Expo) that will share data with the web app via Supabase. The web app will eventually be **redesigned to match** the improved native design, so what you build here is the reference design for the whole product, not just the mobile client.
 
 - **Framework:** React Native via **Expo** (managed workflow / CNG). Currently pinned to **Expo SDK 54** (to match the installed Expo Go app during development).
 - **Backend:** **direct-to-Supabase** with Row Level Security (no separate server in the data path). Supabase Auth handles login/tokens/verification.

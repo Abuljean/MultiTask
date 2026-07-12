@@ -167,12 +167,13 @@ Status semantics & non-color encodings (accent bar/icons/strikethrough), layout 
 
 ## 5. In-app requirements
 
-- **APP-1** Settings gains a low-key **"Styles"** row near the bottom → styles screen: applied pack, owned packs grid, "Import .mtstyle" (file picker), "Back to default" always visible.
+- **APP-1** Settings gains a low-key **"Styles"** row near the bottom → styles screen: applied pack, owned packs grid, "Back to default" always visible. **NO user import** (changed 2026-07-12, developer decision — see APP-7). *(Shipped 2026-07-12 as scaffolding: registry + provider merge + Styles sheet with a "coming soon" state; `lib/style-packs/registry.ts`.)*
 - **APP-2** Below the styles list, smaller: **"Browse the marketplace"** text link → the marketplace page.
 - **APP-3** Applying a pack is instant, per-account (synced via user metadata `active_style_pack`), and never requires restart.
 - **APP-4** Marketplace page: grid of packs (cover, name, author, price); detail page with video/GIF preview, description, screenshots (light+dark), and **Get** (free/owned → install) or **Buy on the website** (link-out per PAY-2).
 - **APP-5** A pack that fails to load at runtime (missing asset, corrupt) falls back to default theme silently + one toast; never a crash.
 - **APP-6** All pack rendering flows through the existing boundaries: tokens/`use-theme`, TaskCard, `swipeable-row(.web)`, pill-colors, `animate-layout`. No screen may special-case a pack.
+- **APP-7 (distribution security — developer decision 2026-07-12): packs are CURATED-ONLY; users can never sideload.** The app installs packs from exactly two sources: (a) the built-in registry compiled into the app, and (b) the official catalog, delivered as downloads **signed with our private key and verified against a public key baked into the app binary** before unpacking. There is no file picker, no URL loader, no import UI of any kind. Approved third-party packs reach users only through us: creator submits → we run VAL-1..9 + calm test → we sign → we publish to the catalog. An unsigned or tampered pack fails verification and is discarded with a generic error.
 
 ## 6. Marketplace backend & payments (build order: after first dev-authored packs)
 

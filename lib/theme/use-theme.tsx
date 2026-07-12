@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { useColorScheme } from 'react-native';
 
+import { DEFAULT_PACK_ID, getPack, STYLE_PACKS, type StylePack } from '@/lib/style-packs/registry';
 import { darkColors, lightColors, monoFont, motion, radius, space, type, type ThemeColors } from './tokens';
 
 export type Theme = {
@@ -26,10 +27,16 @@ export type Theme = {
 type ThemePreference = 'system' | 'light' | 'dark';
 
 const STORAGE_KEY = 'ui.themePreference';
+const PACK_STORAGE_KEY = 'ui.stylePack';
 
 type ThemePreferenceValue = {
   resolved: 'light' | 'dark';
   toggle: () => void;
+  /** Active style pack — always one of the curated STYLE_PACKS (any stored
+   *  id that isn't in the registry falls back to the default, so a removed
+   *  pack can never wedge the app). */
+  packId: string;
+  setPackId: (id: string) => void;
 };
 
 const ThemePreferenceContext = createContext<ThemePreferenceValue | null>(null);
@@ -37,10 +44,14 @@ const ThemePreferenceContext = createContext<ThemePreferenceValue | null>(null);
 export function AppThemeProvider({ children }: PropsWithChildren) {
   const system = useColorScheme();
   const [preference, setPreference] = useState<ThemePreference>('system');
+  const [packId, setPackIdState] = useState<string>(DEFAULT_PACK_ID);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
       if (stored === 'light' || stored === 'dark') setPreference(stored);
+    });
+    AsyncStorage.getItem(PACK_STORAGE_KEY).then((stored) => {
+      if (stored) setPackIdState(getPack(stored).id);
     });
   }, []);
 
@@ -55,11 +66,31 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
         setPreference(next);
         AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
       },
+      packId,
+      setPackId: (id: string) => {
+        const valid = getPack(id).id;
+        setPackIdState(valid);
+        AsyncStorage.setItem(PACK_STORAGE_KEY, valid).catch(() => {});
+      },
     }),
-    [resolved]
+    [resolved, packId]
   );
 
   return <ThemePreferenceContext.Provider value={value}>{children}</ThemePreferenceContext.Provider>;
+}
+
+/** The curated style-pack list + the active selection (Settings → Styles). */
+export function useStylePacks(): {
+  packs: StylePack[];
+  activeId: string;
+  setActive: (id: string) => void;
+} {
+  const context = useContext(ThemePreferenceContext);
+  return {
+    packs: STYLE_PACKS,
+    activeId: context?.packId ?? DEFAULT_PACK_ID,
+    setActive: context?.setPackId ?? (() => {}),
+  };
 }
 
 /** The resolved scheme ('light' | 'dark') honoring the user's toggle.
@@ -79,8 +110,20 @@ export function useThemeToggle(): () => void {
 
 export function useTheme(): Theme {
   const isDark = useResolvedScheme() === 'dark';
+  const context = useContext(ThemePreferenceContext);
+  const pack = getPack(context?.packId);
+
+  // Pack colors merge OVER the base palette — a pack can restyle one token
+  // or every token, per mode, and everything downstream just re-renders.
+  // (This is the style-pack seam: docs/design/09/10.)
+  const colors = useMemo<ThemeColors>(() => {
+    const base = isDark ? darkColors : lightColors;
+    const overrides = isDark ? pack.colors?.dark : pack.colors?.light;
+    return overrides ? { ...base, ...overrides } : base;
+  }, [isDark, pack]);
+
   return {
-    colors: isDark ? darkColors : lightColors,
+    colors,
     isDark,
     space,
     radius,

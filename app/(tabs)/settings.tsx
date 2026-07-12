@@ -7,6 +7,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +31,7 @@ const THRESHOLD_OPTIONS = [12, 24, 48, 72];
 const LEAD_OPTIONS = [30, 60, 120]; // minutes before the deadline
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, space, radius, type } = useTheme();
   const { session } = useAuth();
@@ -304,6 +306,19 @@ export default function SettingsScreen() {
           Follows your phone: {deviceTimezone}. Due times are wall-clock — they don’t shift when you
           travel.
         </Text>
+
+        {/* Low-key by design (docs/design/09): styles must never compete
+            with the productivity settings above. */}
+        {sectionTitle('Styles')}
+        <Pressable
+          onPress={() => router.push('/styles')}
+          accessibilityRole="button"
+          style={{ paddingVertical: space.s2 }}>
+          <Text style={[type.body, { color: colors.accent }]}>Styles</Text>
+          <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400', marginTop: 2 }]}>
+            New looks are coming soon.
+          </Text>
+        </Pressable>
 
         {sectionTitle('Session')}
         {actionRow('Sign out', () => supabase.auth.signOut(), colors.statusOverdueAccent)}

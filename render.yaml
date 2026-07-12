@@ -1,0 +1,28 @@
+# Render Blueprint — deploys the Expo web export as a static site.
+# Dashboard: New → Blueprint → pick this repo. Render reads this file,
+# prompts for the two env values (sync: false), builds, and hosts dist/.
+# This is the NEW web app on its own URL; the Vaadin site keeps running
+# separately until the web-replacement phase (see CLAUDE.md phasing note).
+services:
+  - type: web
+    name: multitask-web
+    runtime: static
+    buildCommand: npm ci && npx expo export --platform web
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Baked into the bundle at build time. The Supabase publishable key is
+      # designed to be public (RLS enforces access) — still entered in the
+      # dashboard, not committed here.
+      - key: EXPO_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: EXPO_PUBLIC_SUPABASE_KEY
+        sync: false
+      # EXPO_PUBLIC_POWERSYNC_URL deliberately absent: web runs online-mode
+      # (lib/sync/system.web.ts) until the desktop/web phase.
+    routes:
+      # SPA fallback — expo-router handles paths client-side.
+      - type: rewrite
+        source: /*
+        destination: /index.html

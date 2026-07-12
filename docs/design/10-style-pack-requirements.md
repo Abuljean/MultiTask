@@ -15,7 +15,7 @@
 
 - **FMT-1** A pack is a ZIP archive with the extension `.mtstyle`, at most **15 MB**.
 - **FMT-2** Root must contain `manifest.json` with exactly: `schema_version` (integer), `id` (reverse-DNS string, e.g. `dev.abuljean.cherry-blossoms`), `name`, `author`, `version` (semver), `description`, `platforms` (array of `ios|android|web|desktop|watch|widgets`), `previews` (file list).
-- **FMT-3** Optional root files: `tokens.json`, `motion.json`; optional folders: `assets/`, `fonts/`, `previews/`. Anything else → reject.
+- **FMT-3** Optional root files: `tokens.json`, `motion.json`; optional folders: `assets/`, `fonts/`, `previews/`, `sounds/` (v2 — ignored until the app supports it), `icons/` (alternate app icons per §4.2). Anything else → reject.
 - **FMT-4** `tokens.json` must provide **both** `light` and `dark` variants for every color it overrides. Partial single-mode packs → reject.
 - **FMT-5** Fonts must be TTF/OTF with a `license` field per font in the manifest. Fonts without license attestation → reject.
 - **FMT-6** Images: PNG/WebP (≤2048px longest side, @1x/@2x/@3x sets) or SVG (no `<script>`, no external refs). Previews: `cover.png` (1024×1024) mandatory for marketplace listing; `preview.mp4` (≤20s, ≤10 MB) or `preview.gif` optional but required for marketplace.
@@ -26,51 +26,102 @@
 - **VAL-1** Structural: zip integrity, manifest completeness, no disallowed file types (no .js/.html/executables of any kind).
 - **VAL-2** Every color pair implied by token overrides passes **WCAG 4.5:1** for text roles (3:1 for large-text-only roles). Fail → reject with the specific pair named.
 - **VAL-3** The four status accents remain **pairwise distinguishable**: minimum ΔE (CIE76) of 20 between any two of ongoing/urgent/overdue accents in both modes.
-- **VAL-4** Every motion value inside the ranges of §5. Out-of-range → clamp with a warning at import (not rejection).
+- **VAL-4** Every motion value inside the ranges of §4.4. Out-of-range → clamp with a warning at import (not rejection).
 - **VAL-5** Background art passes the automated busyness ceiling (mean local contrast of the texture ≤ threshold to be tuned with the first packs) — plus **manual developer approval ("the calm test") for marketplace listing**.
 - **VAL-6** Size budgets per FMT-1/FMT-6.
 
 ## 4. Customization surface — the complete inventory
 
 ### 4.1 Token overrides (`tokens.json`)
-Everything in `lib/theme/tokens.ts` `ThemeColors`, plus: `monoFont`/`titleFont` (font family references into `fonts/`), radius overrides (`tight` 4–8, `button` 8–14, `card` 8–24, pill fixed at full-round), pill palette treatment (opacity levels), priority tier colors (3 tiers × 2 modes).
+Everything in `lib/theme/tokens.ts` `ThemeColors` (light + dark), plus:
+- **Fonts:** `font.title`, `font.body`, `font.mono` (references into `fonts/`; Dynamic Type scaling mandatory), per-role weight overrides within 400–700.
+- **Radii:** `tight` 4–8, `button` 8–14, `card` 8–24 (pill stays full-round).
+- **Pill treatment:** background opacity (light 0.10–0.25, dark 0.18–0.35), border opacity, border width 0–1.5.
+- **Priority tier colors** (3 tiers × 2 modes) and tier LABELS' style (weight/caps — text itself locked).
+- **Shadows:** color/opacity/radius for the three shadowed elements (FAB, toast, sheets) within calm bounds (opacity ≤0.3).
+- **Backdrop dim** behind sheets/windows: 0.25–0.5.
+- **Selection & focus (web/desktop):** text-selection color, focus-ring color (contrast-validated).
+- **Skeleton tint** (loading placeholders) and pull-to-refresh spinner tint.
 
-### 4.2 Asset slots (`assets/`, all optional)
+### 4.2 App identity (per-pack, optional)
+| Item | Notes |
+|---|---|
+| `icon.ios` / `icon.android` | Alternate app icon shipped with the pack (iOS alternate-icon API; Android adaptive). Requires app-side registration per release, so marketplace packs may lag app updates — flagged at listing. |
+| `splash.background` | Splash background color only (image stays the app's) |
+
+### 4.3 Asset slots (`assets/`, all optional)
 | Slot key | Renders as | Spec |
 |---|---|---|
-| `card.texture.{status}` | Card background art per status (default/ongoing/urgent/overdue/completed) | full-bleed under content, ≤8% visual weight over the surface color |
-| `card.corner` | Corner ornament | ≤48×48pt, one corner |
+| `card.texture.{status}` | Card background art per status (default/ongoing/urgent/overdue/completed) | full-bleed under content, ≤8% visual weight |
+| `card.corner.{status?}` | Corner ornament, optionally per status | ≤48×48pt |
+| `card.accentBar` | The status bar treatment | width 2–6, solid/pattern/gradient |
+| `card.border` | Card border style | solid/dashed/none, 0–2pt |
+| `card.strikethrough` | Completed title strike | color/thickness 1–2/style straight or hand-drawn squiggle asset |
+| `card.dueChip` | Due-date treatment | plain text (default) or chip background |
 | `badge.priority.{1,2,3}` | Priority tier badge art | 20pt height |
-| `glyph.{check,trash,undo,overdue,fab}` | Action/status glyphs | SVG preferred, 22–26pt |
-| `background.app` | App/screen background | solid/gradient/texture; the calm ceiling applies hardest here |
-| `calendar.dot`, `calendar.eventRing` | Day-cell markers | ≤8pt shapes |
-| `trail.{complete,delete,restore}` | Swipe/hover trail fill | solid or ≤2-stop gradient |
+| `glyph.{check,trash,undo,overdue,plus,search,settings,calendar,daily,tasks}` | Action glyphs + the 5 tab icons (same concept → same glyph rule) | SVG preferred, 20–28pt |
+| `tabbar.background` | Tab bar surface treatment | solid/translucent |
+| `tabbar.activeTint` | Selected tab color | contrast-validated |
+| `background.app` | Screen background | solid/gradient/texture; calm ceiling applies hardest |
+| `background.signin` | Sign-in screen background | same rules |
+| `section.header` | Section header typography + chevron glyph | h2 role bounds |
+| `recurring.row` | Daily pill-row texture/shape | radius 12–999 |
+| `recurring.done` | Done-row treatment | fade 0.4–0.7 + optional stamp glyph |
+| `recurring.addGhost` | The dashed add-row style | dash pattern/color |
+| `event.border` | Event card border pattern | dashed/dotted/solid/decorated strip |
+| `event.palette` | Default event color set (the import swatches) | 8–12 swatches |
+| `calendar.tile` | Day tile shape/texture | square/rounded/circle |
+| `calendar.today` | Today marker | filled circle/ring/underline + optional glyph |
+| `calendar.dot` | Task dot shape | dot/diamond/star/mini-glyph ≤8pt |
+| `calendar.eventRing` | Event marker shape | ≤8pt hollow shape |
+| `calendar.overdueTint` | Overdue-day tint strength | 0.5–1.5× default |
+| `calendar.greyLevel` | Non-current month/year grey intensity | within tertiary–secondary band |
+| `trail.{complete,delete,restore}` | Swipe/hover trail fill | solid or ≤2-stop gradient or texture |
+| `sheet.surface` | Form sheet/window background | texture allowed, calm ceiling |
+| `sheet.grabber` | Grabber style | bar/dots/hidden-not-allowed (honesty rule) |
 | `toast.surface` | Undo toast background | 9-patch style |
-| `widget.frame` | Widget border/frame art | "subtle shape" only; content layout untouchable |
-| `watch.accent` | Watch tint | color only |
+| `empty.{tasks,daily,calendar,search,trash}` | Empty-state glyphs (24pt; copy locked) | monochrome, uses text colors |
+| `fab.shape` | circle/squircle/rounded-square | 56pt bounds |
+| `fab.fill` | solid/gradient | |
+| `notification.color` (Android) | Accent for notifications | |
+| `widget.frame` / `widget.background` / `widget.dot` | Widget theming | "subtle shape" only; content layout untouchable |
+| `watch.accent` / `watch.rowTint` / `watch.complicationTint` | Watch theming | colors only |
 
-### 4.3 Motion parameters (`motion.json`) — defaults are the shipped, hand-tuned values
+### 4.4 Motion parameters (`motion.json`) — defaults are the shipped, hand-tuned values
 | Key | Default | Allowed range |
 |---|---|---|
 | `swipe.threshold` | 0.1618 of width | 0.12–0.35 |
 | `swipe.slideOff.ms` | 240 | 150–500 |
+| `swipe.trailIcon.scaleFrom` | 0.85 | 0.6–1.0 |
 | `entrance.travel` | 0.6 of width | 0.3–0.8 |
 | `entrance.ms` | 647.2 | 200–900 |
 | `entrance.overshoot` | 0 (none) | 0–0.25 |
+| `entrance.easing` | ease-out cubic | curve library |
 | `settle.spring` | damping 26 / stiffness 240 | d 12–30 / k 120–300 |
 | `regroup.springDamping` | 0.95 | 0.7–1.0 |
+| `regroup.createDelay.ms` | 80 | 0–150 |
 | `cascade.staggerMs` | 30 | 15–80 |
 | `sheet.open.ms` / `close.ms` | 280 / 260 | 180–400 |
-| `reveal.ms` (collapsibles/pickers) | 220 | 150–350 |
+| `reveal.ms` (collapsibles/pickers/filter panel) | 220 | 150–350 |
+| `searchReveal.pullPx` | 70 | 40–120 |
 | `calendarZoom.out.ms` / `in.ms` | 150 / 220 | 120–350 |
+| `calendarZoom.outScale` / `inScale` | 1.4 / 0.7 | 1.2–1.8 / 0.5–0.85 |
 | `dayZoom.startScale` | 0.5 | 0.3–0.9 |
-| `completion.effect` | none | one of the built-in effect library (`petals`, `sparkle`, `checkpop`, none), ≤600ms |
+| `dayZoom.ms` | 260 | 180–400 |
+| `toast.entrance.spring` | snappy (22/260) | d 12–30 / k 120–300 |
+| `fab.pressScale` | 0.9 | 0.8–0.95 |
+| `completion.effect` | none | built-in effect library (`petals`, `sparkle`, `checkpop`, `confettiMinimal`, none) ≤600ms; custom sprite-sheet effects are v2 |
+| `delete.effect` / `restore.effect` | none | same library |
 | `hover.reveal.px` (web) | 88 | 56–120 |
+| `hover.reveal.ms` (web) | 180 | 120–300 |
 
-### 4.4 Geometry constants (NOT customizable — published so designers size assets correctly)
+### 4.5 Sounds (`sounds/`, v2 — every entry optional, master default OFF)
+`complete`, `delete`, `undo`, `add`, `notification` — ≤1s each, loudness-normalized, user toggle overrides packs.
+
+### 4.6 Geometry constants (NOT customizable — published so designers size assets correctly)
 Card: padding 16, radius 16 (unless overridden within range), accent bar 3×full-height. Pills: height 20, radius full. FAB: 56Ø. Calendar day cell: 68pt tall, task dots 6pt, event ring 7pt. Toast: radius 16, bottom offset 64. Type scale: 32/24/18/15/12 (weights 700/600/600/400/500). Spacing scale: 4/8/12/16/20/24/32/40/48. Phone canvas: 360–430pt wide; supply 3x assets.
 
-### 4.5 Locked (never customizable)
+### 4.7 Locked (never customizable)
 Status semantics & non-color encodings (accent bar/icons/strikethrough), layout structure & density, copy, tap targets ≥44pt, notification content, reduced-motion collapse (OS setting always wins over pack motion), sign-in/auth UI beyond background.
 
 ## 5. In-app requirements

@@ -30,6 +30,10 @@ type Props = PropsWithChildren<{
   enterFrom?: 'left' | 'right' | null;
   onEntered?: () => void;
   exit?: { to: 'left' | 'right'; delayMs: number } | null;
+  /** Hover aura: a glow ring in the row's own color (task status accent,
+   *  recurring rows use the theme accent) that fades in with the hover. */
+  hoverAuraColor?: string;
+  hoverAuraRadius?: number;
 }>;
 
 export function SwipeableRow({
@@ -41,6 +45,8 @@ export function SwipeableRow({
   enterFrom,
   onEntered,
   exit,
+  hoverAuraColor,
+  hoverAuraRadius,
   children,
 }: Props) {
   const { colors, radius } = useTheme();
@@ -96,6 +102,12 @@ export function SwipeableRow({
   const leftTrailStyle = useAnimatedStyle(() => ({
     opacity: translateX.value < -4 ? 1 : 0,
   }));
+  // The aura only shows for a RESTING hover — once the row starts sliding
+  // toward an action, the trail is the signal and the ring gets out of
+  // the way.
+  const auraStyle = useAnimatedStyle(() => ({
+    opacity: rowHover.value * (Math.abs(translateX.value) < 4 ? 1 : 0),
+  }));
 
   function commit(side: 'left' | 'right') {
     setHoverSide(null);
@@ -136,7 +148,23 @@ export function SwipeableRow({
         </View>
       </Animated.View>
 
-      <Animated.View style={contentStyle}>{children}</Animated.View>
+      <Animated.View style={contentStyle}>
+        {children}
+        {hoverAuraColor && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.hoverRing,
+              {
+                borderColor: hoverAuraColor,
+                borderRadius: (hoverAuraRadius ?? radius.card) + 2,
+                boxShadow: `0 0 10px ${hoverAuraColor}66`,
+              },
+              auraStyle,
+            ]}
+          />
+        )}
+      </Animated.View>
 
       {/* Invisible hover/click zones on the row's edges. */}
       <Pressable
@@ -181,4 +209,12 @@ const styles = StyleSheet.create({
   },
   edgeLeft: { left: 0 },
   edgeRight: { right: 0 },
+  hoverRing: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderWidth: 1.5,
+  },
 });

@@ -57,6 +57,10 @@ type Props = PropsWithChildren<{
    *  exactly like a committed swipe, optionally delayed for a cascade. The
    *  caller runs the actual mutation after the animation window. */
   exit?: { to: 'left' | 'right'; delayMs: number } | null;
+  /** Web/desktop hover aura (status-colored glow ring). Touch platforms
+   *  ignore it — hover doesn't exist here. */
+  hoverAuraColor?: string;
+  hoverAuraRadius?: number;
 }>;
 
 export function SwipeableRow({

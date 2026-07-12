@@ -5,6 +5,8 @@
 // The screen decides what actually happens via onSwipeRight/onSwipeLeft.
 import { SwipeableRow } from '@/components/swipeable-row';
 import { TaskCard } from '@/components/task-card';
+import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
+import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -21,12 +23,26 @@ type Props = {
 
 export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, enterFrom, onEntered, exit, showDescription }: Props) {
   const { colors } = useTheme();
+  const urgencyThresholdHours = useUrgencyThreshold();
 
   // Right swipe = complete for live tasks, restore for completed/trashed ones.
   const rightIsRestore = task.isCompleted || task.deletedAt != null;
 
+  // Hover aura (web/desktop) matches the task's status color; neutral
+  // statuses glow in the theme accent.
+  const status = deriveStatus(task, { urgencyThresholdHours });
+  const auraColor =
+    status === 'overdue'
+      ? colors.statusOverdueAccent
+      : status === 'urgent'
+        ? colors.statusUrgentAccent
+        : status === 'ongoing'
+          ? colors.statusOngoingAccent
+          : colors.accent;
+
   return (
     <SwipeableRow
+      hoverAuraColor={auraColor}
       rightAction={{
         color: rightIsRestore ? colors.accent : colors.statusOngoingAccent,
         icon: rightIsRestore ? 'arrow.uturn.backward' : 'checkmark',

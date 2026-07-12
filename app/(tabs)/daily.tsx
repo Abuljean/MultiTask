@@ -149,7 +149,9 @@ export default function DailyScreen() {
         onSwipeLeft={() => removeRecurring(task)}
         resetKey={`rec:${task.id}|${task.doneToday}`}
         enterFrom={getEnterFrom(`rec:${task.id}`)}
-        onEntered={() => clearEnterMark(`rec:${task.id}`)}>
+        onEntered={() => clearEnterMark(`rec:${task.id}`)}
+        hoverAuraColor={colors.accent}
+        hoverAuraRadius={999}>
         <Pressable
           onPress={() => tapToggleDone(task)}
           accessibilityRole="checkbox"

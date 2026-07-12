@@ -175,13 +175,18 @@ export default function DayScreen() {
                 scrollTop.value = e.nativeEvent.contentOffset.y;
               }}
               scrollEventThrottle={16}
-              contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3 }}
+              contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3, flexGrow: 1 }}
               showsVerticalScrollIndicator={false}>
               {dayEvents.length > 0 && (
                 <>
                   <Text style={[type.h2, { color: colors.textSecondary }]}>Schedule</Text>
                   {dayEvents.map((event) => (
-                    <EventCard key={event.id} event={event} onPress={(e) => router.push(`/event/${e.id}`)} />
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      onPress={(e) => router.push(`/event/${e.id}`)}
+                      showNotes={isWide}
+                    />
                   ))}
                   {dayTasks.length > 0 && (
                     <Text style={[type.h2, { color: colors.textSecondary, marginTop: space.s2 }]}>Tasks</Text>
@@ -205,6 +210,15 @@ export default function DayScreen() {
                     showDescription={isWide}
                   />
                 ))
+              )}
+              {/* The leftover space below the last card is also an exit
+                  (web/desktop, matching the side gutters). */}
+              {isWide && (
+                <Pressable
+                  onPress={close}
+                  accessibilityLabel="Back to calendar"
+                  style={{ flexGrow: 1, minHeight: 48 }}
+                />
               )}
             </ScrollView>
           </GestureDetector>

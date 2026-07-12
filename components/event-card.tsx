@@ -13,7 +13,17 @@ export function eventTimeLabel(event: CalendarEvent): string {
   return event.end ? `${fmt(event.start)} – ${fmt(event.end)}` : fmt(event.start);
 }
 
-export function EventCard({ event, onPress }: { event: CalendarEvent; onPress?: (event: CalendarEvent) => void }) {
+export function EventCard({
+  event,
+  onPress,
+  showNotes,
+}: {
+  event: CalendarEvent;
+  onPress?: (event: CalendarEvent) => void;
+  /** Desktop day page shows the imported notes inline (phones keep them in
+   *  the event detail sheet). */
+  showNotes?: boolean;
+}) {
   const { colors, space, radius, type, monoFont } = useTheme();
   const timeLabel = eventTimeLabel;
   const accent = event.color ?? colors.statusEventAccent;
@@ -40,6 +50,11 @@ export function EventCard({ event, onPress }: { event: CalendarEvent; onPress?: 
       {event.location && (
         <Text numberOfLines={1} style={[type.caption, { color: colors.textSecondary, fontWeight: '400' }]}>
           {event.location}
+        </Text>
+      )}
+      {showNotes && event.notes && (
+        <Text numberOfLines={4} style={[type.body, { color: colors.textSecondary }]}>
+          {event.notes}
         </Text>
       )}
     </Pressable>

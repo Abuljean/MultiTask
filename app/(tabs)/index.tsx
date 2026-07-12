@@ -4,7 +4,7 @@
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
@@ -17,6 +17,7 @@ import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { animateListChanges } from '@/lib/animate-layout';
+import { confirmDialog } from '@/lib/confirm';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import { EMPTY_FILTERS, filterTasks, hasActiveFilters, type TaskFilters } from '@/lib/tasks/filter';
 import { groupTasks } from '@/lib/tasks/sections';
@@ -178,24 +179,23 @@ export default function TaskListScreen() {
 
   // Emptying the trash is bulk-permanent — the one action with no undo, so
   // it's also the one action that earns a confirmation dialog.
-  function emptyTrash() {
+  async function emptyTrash() {
     const ids = (tasks ?? []).filter((t) => t.deletedAt).map((t) => t.id);
     if (ids.length === 0) return;
-    Alert.alert('Empty trash?', `${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} will be gone permanently.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Empty',
-        style: 'destructive',
-        onPress: () =>
-          runWithCascade(ids, !deletedCollapsed, () => {
-            animateListChanges();
-            bulkPermanentDelete.mutate(ids, {
-              onError: () => toast.show({ message: 'Couldn’t empty the trash — check your connection.' }),
-            });
-            toast.show({ message: 'Trash emptied.' });
-          }),
-      },
-    ]);
+    const confirmed = await confirmDialog({
+      title: 'Empty trash?',
+      message: `${ids.length} ${ids.length === 1 ? 'task' : 'tasks'} will be gone permanently.`,
+      confirmLabel: 'Empty',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    runWithCascade(ids, !deletedCollapsed, () => {
+      animateListChanges();
+      bulkPermanentDelete.mutate(ids, {
+        onError: () => toast.show({ message: 'Couldn’t empty the trash — check your connection.' }),
+      });
+      toast.show({ message: 'Trash emptied.' });
+    });
   }
 
   function renderCollapsibleHeader(key: string) {
@@ -239,6 +239,7 @@ export default function TaskListScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+    <View style={styles.pageWidth}>
       <View style={[styles.titleRow, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
         <View style={styles.titleActions}>
@@ -321,11 +322,14 @@ export default function TaskListScreen() {
 
       <Fab bottom={insets.bottom + 24} onPress={() => router.push('/quick-add')} />
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  // Desktop/web: content stays readable instead of stretching edge-to-edge.
+  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,12 +4,13 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { readAsStringAsync } from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { useUndoToast } from '@/components/undo-toast';
+import { confirmDialog } from '@/lib/confirm';
 import { csvToEvents, NAMED_EVENT_COLORS, type CsvImportResult } from '@/lib/events/csv';
 import { useDeleteAllEvents, useEvents, useImportEvents } from '@/lib/events/use-events';
 import { useTheme } from '@/lib/theme/use-theme';
@@ -90,20 +91,19 @@ export default function ImportEventsScreen() {
     );
   }
 
-  function confirmDeleteAll() {
+  async function confirmDeleteAll() {
     const count = existingEvents?.length ?? 0;
-    Alert.alert('Delete all events?', `${count} imported event${count === 1 ? '' : 's'} will be removed.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () =>
-          deleteAllEvents.mutate(undefined, {
-            onSuccess: () => toast.show({ message: 'All events deleted.' }),
-            onError: () => toast.show({ message: 'Couldn’t delete events — check your connection.' }),
-          }),
-      },
-    ]);
+    const confirmed = await confirmDialog({
+      title: 'Delete all events?',
+      message: `${count} imported event${count === 1 ? '' : 's'} will be removed.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    deleteAllEvents.mutate(undefined, {
+      onSuccess: () => toast.show({ message: 'All events deleted.' }),
+      onError: () => toast.show({ message: 'Couldn’t delete events — check your connection.' }),
+    });
   }
 
   return (

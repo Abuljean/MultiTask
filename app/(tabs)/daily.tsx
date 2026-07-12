@@ -184,6 +184,7 @@ export default function DailyScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+    <View style={styles.pageWidth}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
         contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}>
@@ -297,11 +298,13 @@ export default function DailyScreen() {
         )}
       </ScrollView>
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',

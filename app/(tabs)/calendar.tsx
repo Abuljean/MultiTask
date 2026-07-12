@@ -350,6 +350,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+    <View style={styles.pageWidth}>
       <View style={[styles.topBar, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
         {mode === 'month' ? (
           <Pressable
@@ -414,11 +415,13 @@ export default function CalendarScreen() {
       )}
       </Animated.View>
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   zoomContainer: { flex: 1 },
   topBar: {
     flexDirection: 'row',

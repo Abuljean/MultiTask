@@ -4,12 +4,13 @@
 // delete lives here (confirmed — no undo path exists for events).
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { eventTimeLabel } from '@/components/event-card';
 import { useUndoToast } from '@/components/undo-toast';
+import { confirmDialog } from '@/lib/confirm';
 import { useDeleteEvent, useEvents } from '@/lib/events/use-events';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -56,21 +57,19 @@ export default function EventDetailScreen() {
 
   if (!event) return null;
 
-  function confirmDelete() {
-    Alert.alert('Delete this event?', event?.title, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteEvent.mutate(eventId, {
-            onError: () => toast.show({ message: 'Couldn’t delete the event — check your connection.' }),
-          });
-          toast.show({ message: 'Event deleted.' });
-          close();
-        },
-      },
-    ]);
+  async function confirmDelete() {
+    const confirmed = await confirmDialog({
+      title: 'Delete this event?',
+      message: event?.title,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    deleteEvent.mutate(eventId, {
+      onError: () => toast.show({ message: 'Couldn’t delete the event — check your connection.' }),
+    });
+    toast.show({ message: 'Event deleted.' });
+    close();
   }
 
   const dateLabel = event.start.toLocaleDateString(undefined, {

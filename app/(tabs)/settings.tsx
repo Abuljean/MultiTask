@@ -171,6 +171,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
+    <View style={styles.pageWidth}>
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}>
         <Text style={[type.h1, { color: colors.textPrimary, paddingVertical: space.s3 }]}>Settings</Text>
@@ -330,11 +331,13 @@ export default function SettingsScreen() {
         }}
       />
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',

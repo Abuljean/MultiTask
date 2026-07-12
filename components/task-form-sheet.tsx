@@ -7,12 +7,10 @@
 // silently no-ops in Modal's separate native window). Dismissal is
 // tap-outside or the submit button ONLY — the body scrolls and scrolling can
 // never close the sheet.
-import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Keyboard,
   Platform,
   Pressable,
@@ -28,7 +26,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { CollapsibleReveal } from '@/components/collapsible-reveal';
+import { InlineDatePicker } from '@/components/inline-date-picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { confirmDialog } from '@/lib/confirm';
 import { endOfToday } from '@/lib/tasks/dates';
 import { useTasks } from '@/lib/tasks/use-tasks';
 import { priorityTiers } from '@/lib/theme/tokens';
@@ -117,9 +117,13 @@ function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCr
   );
 }
 
+// On web/desktop the form is a WINDOW, not a bottom sheet (docs/design/08):
+// centered card, all fields visible, no drag-to-dismiss.
+const isWeb = Platform.OS === 'web';
+
 export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, onSubmit }: Props) {
   const router = useRouter();
-  const { colors, space, radius, type, monoFont, isDark } = useTheme();
+  const { colors, space, radius, type, monoFont } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
 
@@ -129,9 +133,12 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   const [priority, setPriorityValue] = useState<number | null>(initial?.priority ?? null);
   const [category, setCategory] = useState<NamedColor | null>(initial?.category ?? null);
   const [subject, setSubject] = useState<NamedColor | null>(initial?.subject ?? null);
-  // Open Details from the start when editing a task that already uses them.
+  // Open Details from the start when editing a task that already uses them —
+  // and ALWAYS on web/desktop, where the form is a window with all fields
+  // visible (docs/design/08).
   const [detailsOpen, setDetailsOpen] = useState(
-    Boolean(initial?.description || initial?.priority != null || initial?.category || initial?.subject)
+    isWeb ||
+      Boolean(initial?.description || initial?.priority != null || initial?.category || initial?.subject)
   );
   const [creating, setCreating] = useState<'category' | 'subject' | null>(null);
   // Options created in this session, so they render as selectable chips
@@ -175,8 +182,10 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   }, []);
 
   // Sheet enter/exit: slide up on mount; on close, dismiss the keyboard and
-  // slide down in sync with it, then pop the route.
-  const sheetOffset = useSharedValue(screenHeight);
+  // slide down in sync with it, then pop the route. On web the window just
+  // eases in from a small offset instead of crossing the viewport.
+  const closedOffset = isWeb ? 32 : screenHeight;
+  const sheetOffset = useSharedValue(closedOffset);
   const backdropOpacity = useSharedValue(0);
 
   useEffect(() => {
@@ -199,7 +208,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     Keyboard.dismiss();
     backdropOpacity.value = withTiming(0, { duration: 220 });
     sheetOffset.value = withTiming(
-      screenHeight,
+      closedOffset,
       { duration: 260, easing: Easing.in(Easing.cubic) },
       (finished) => {
         if (finished) runOnJS(goBack)();
@@ -217,16 +226,18 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     (subject?.name ?? null) !== (initial?.subject?.name ?? null) ||
     (dueDate?.getTime() ?? null) !== (initial?.dueDate?.getTime() ?? null);
 
-  function maybeClose() {
+  async function maybeClose() {
     if (!isDirty) {
       close();
       return;
     }
     sheetOffset.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
-    Alert.alert('Discard changes?', undefined, [
-      { text: 'Keep editing', style: 'cancel' },
-      { text: 'Discard', style: 'destructive', onPress: close },
-    ]);
+    const discard = await confirmDialog({
+      title: 'Discard changes?',
+      confirmLabel: 'Discard',
+      destructive: true,
+    });
+    if (discard) close();
   }
 
   function submit() {
@@ -248,11 +259,13 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   const [picker, setPickerRaw] = useState<'date' | 'time' | null>(null);
   const [renderedPicker, setRenderedPicker] = useState<'date' | 'time' | null>(null);
   const pickerHeight = useSharedValue(0);
-  const PICKER_HEIGHTS = { date: 360, time: 216 } as const;
+  // iOS: inline calendar / minute wheel. Web: a compact HTML input row.
+  const PICKER_HEIGHTS = isWeb ? ({ date: 56, time: 56 } as const) : ({ date: 360, time: 216 } as const);
 
   function setPicker(next: 'date' | 'time' | null) {
     setPickerRaw(next);
-    if (Platform.OS !== 'ios') {
+    if (Platform.OS === 'android') {
+      // Android pickers are system dialogs — nothing inline to animate.
       setRenderedPicker(next);
       return;
     }
@@ -287,7 +300,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   }
 
   const sheetPan = Gesture.Pan()
-    .enabled(renderedPicker === null)
+    .enabled(!isWeb && renderedPicker === null)
     .activeOffsetY(12)
     .failOffsetX([-14, 14])
     .simultaneousWithExternalGesture(bodyScrollGesture)
@@ -316,8 +329,8 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
       }
     });
 
-  function onPickerChange(event: DateTimePickerEvent, selected?: Date) {
-    if (event.type === 'dismissed') {
+  function onPickerChange(selected: Date | null, dismissed: boolean) {
+    if (dismissed) {
       setPicker(null);
       return;
     }
@@ -381,7 +394,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   const maxBodyHeight = Math.max(200, screenHeight - keyboardHeight - insets.top - 220);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isWeb && styles.containerWeb]}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       {/* Tap outside (or drag the sheet down) to cancel; unsaved changes
           get a discard confirmation. */}
@@ -390,6 +403,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
       <Animated.View
         style={[
           styles.sheet,
+          isWeb && styles.sheetWeb,
           sheetStyle,
           {
             backgroundColor: colors.surfaceElevated,
@@ -398,10 +412,19 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             padding: space.s4,
             paddingBottom: keyboardHeight > 0 ? keyboardHeight + space.s3 : Math.max(insets.bottom, space.s4),
           },
+          isWeb && {
+            borderBottomLeftRadius: radius.card,
+            borderBottomRightRadius: radius.card,
+            borderWidth: 1,
+            borderColor: colors.borderSubtle,
+            paddingBottom: space.s4,
+          },
         ]}>
-        <View style={styles.grabberZone} accessibilityLabel="Drag down to close" accessibilityRole="adjustable">
-          <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
-        </View>
+        {!isWeb && (
+          <View style={styles.grabberZone} accessibilityLabel="Drag down to close" accessibilityRole="adjustable">
+            <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
+          </View>
+        )}
 
         <GestureDetector gesture={bodyScrollGesture}>
         <ScrollView
@@ -480,28 +503,24 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             )}
           </View>
 
-          {Platform.OS === 'ios' ? (
+          {Platform.OS !== 'android' ? (
             <Animated.View style={pickerContainerStyle}>
               {renderedPicker && (
-                <DateTimePicker
-                  value={dueDate ?? endOfToday()}
-                  mode={renderedPicker}
-                  display={renderedPicker === 'date' ? 'inline' : 'spinner'}
-                  onChange={onPickerChange}
-                  accentColor={colors.accent}
-                  themeVariant={isDark ? 'dark' : 'light'}
-                />
+                <View style={{ paddingTop: space.s2 }}>
+                  <InlineDatePicker
+                    mode={renderedPicker}
+                    value={dueDate ?? endOfToday()}
+                    onChange={onPickerChange}
+                  />
+                </View>
               )}
             </Animated.View>
           ) : (
             renderedPicker && (
-              <DateTimePicker
-                value={dueDate ?? endOfToday()}
+              <InlineDatePicker
                 mode={renderedPicker}
-                display="default"
+                value={dueDate ?? endOfToday()}
                 onChange={onPickerChange}
-                accentColor={colors.accent}
-                themeVariant={isDark ? 'dark' : 'light'}
               />
             )
           )}
@@ -639,6 +658,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  containerWeb: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  sheetWeb: {
+    maxWidth: 560,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

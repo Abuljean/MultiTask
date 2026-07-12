@@ -127,12 +127,12 @@ Declared per card type, optionally per status (so an overdue card can hover diff
 | Key | Default | Allowed range |
 |---|---|---|
 | `hover.lift.px` | 0 | 0–6 (translateY up) |
-| `hover.scale` | 1.0 | 1.0–1.03 |
+| `hover.scale` | 1.015 (the shipped whole-card hover) | 1.0–1.03 |
 | `hover.tilt.deg` | 0 | 0–2 (subtle 3D tilt toward cursor) |
 | `hover.shadowBloom` | 0 | 0–0.25 extra shadow opacity |
 | `hover.borderGlow` | none | any pack color, ≤2pt, contrast-checked |
 | `hover.overlay` | none | asset slot `card.hover.{status?}` — art that fades in on hover, ≤10% visual weight |
-| `hover.ms` | 180 | 120–300 (in AND out — no lingering) |
+| `hover.ms` | 150 | 120–300 (in AND out — no lingering) |
 | `hover.effect` | none | an effect from §4.6 played once on hover-enter, ≤400ms |
 
 Hover is a web/desktop-only layer; native touch ignores it entirely. The calm ceiling applies: hover may acknowledge the cursor, never chase it.

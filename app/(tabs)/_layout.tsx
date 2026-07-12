@@ -16,7 +16,8 @@ export default function TabLayout() {
   useNotificationSync();
   useNotificationNavigation();
 
-  // Desktop/web (docs/design/08): navigation moves to a RIGHT-side rail —
+  // Desktop/web: navigation moves to a LEFT-side rail (developer pick
+  // 2026-07-11 after seeing the right rail live; docs/design/08 updated) —
   // the bottom bar is a phone pattern. React Navigation 7 requires the
   // 'material' variant for side positions.
   const sideNav = Platform.OS === 'web' && width >= 1024;
@@ -29,7 +30,7 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         ...(sideNav
           ? ({
-              tabBarPosition: 'right',
+              tabBarPosition: 'left',
               tabBarVariant: 'material',
               tabBarLabelPosition: 'below-icon',
             } as const)
@@ -61,13 +62,6 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Debug',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="wrench.fill" color={color} />,
         }}
       />
     </Tabs>

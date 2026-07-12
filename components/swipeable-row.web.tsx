@@ -46,6 +46,10 @@ export function SwipeableRow({
   const { colors, radius } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const translateX = useSharedValue(0);
+  // Whole-row hover feedback: a gentle scale so EVERY card visibly
+  // acknowledges the pointer (the edge zones alone were undiscoverable —
+  // developer feedback 2026-07-11). Calm ceiling: 1.5%, no shadow chase.
+  const rowHover = useSharedValue(0);
   const [hoverSide, setHoverSide] = useState<'left' | 'right' | null>(null);
 
   // Hover slides the row aside; leaving slides it back.
@@ -84,7 +88,7 @@ export function SwipeableRow({
   }, [exit, screenWidth, translateX]);
 
   const contentStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
+    transform: [{ translateX: translateX.value }, { scale: 1 + rowHover.value * 0.015 }],
   }));
   const rightTrailStyle = useAnimatedStyle(() => ({
     opacity: translateX.value > 4 ? 1 : 0,
@@ -107,7 +111,13 @@ export function SwipeableRow({
   }
 
   return (
-    <View>
+    <Pressable
+      onHoverIn={() => {
+        rowHover.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
+      }}
+      onHoverOut={() => {
+        rowHover.value = withTiming(0, { duration: 150, easing: Easing.out(Easing.cubic) });
+      }}>
       <Animated.View
         style={[styles.trail, { backgroundColor: rightAction.color, borderRadius: radius.card }, rightTrailStyle]}>
         <View style={styles.trailIconLeft}>
@@ -138,7 +148,7 @@ export function SwipeableRow({
         onPress={() => commit('right')}
         accessibilityLabel="Delete"
       />
-    </View>
+    </Pressable>
   );
 }
 

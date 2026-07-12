@@ -3,6 +3,8 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -86,6 +88,15 @@ export default function RootLayout() {
   // JetBrains Mono is the identity font for time chips (docs/design/03).
   // Hold the splash screen until it's ready so text never swaps mid-view.
   const [fontsLoaded] = useFonts({ JetBrainsMono_500Medium });
+
+  // Web: tell the browser which scheme we're rendering so NATIVE chrome
+  // (scrollbars, form controls) matches — otherwise dark mode gets a glaring
+  // white scrollbar.
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.documentElement.style.colorScheme = colorScheme === 'dark' ? 'dark' : 'light';
+    }
+  }, [colorScheme]);
 
   if (!fontsLoaded) {
     return null;

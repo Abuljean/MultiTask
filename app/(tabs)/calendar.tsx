@@ -6,7 +6,16 @@
 // task list. Fixed 6-week month grids keep scroll positions exact.
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ViewToken,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -17,6 +26,7 @@ import { buildMonthMatrix, localDateKey, tasksByDay } from '@/lib/tasks/calendar
 import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 import { useTasks } from '@/lib/tasks/use-tasks';
+import { CONTENT_MAX_WIDTH, pageContent } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
 const MONTH_NAMES = [
@@ -24,19 +34,28 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const WEEKDAY_LABELS_WIDE = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Fixed geometry so FlatList can jump straight to any month/year.
-const DAY_CELL_HEIGHT = 68;
+// Fixed geometry so FlatList can jump straight to any month/year. Phone and
+// desktop use different scales (desktop cells are tall enough for named
+// task bars) — each mode's numbers stay constant, so scroll math holds.
 const MONTH_HEADER_HEIGHT = 44;
 const WEEKDAY_ROW_HEIGHT = 24;
 const MONTH_BOTTOM_GAP = 24;
-const MONTH_ITEM_HEIGHT = MONTH_HEADER_HEIGHT + WEEKDAY_ROW_HEIGHT + 6 * DAY_CELL_HEIGHT + MONTH_BOTTOM_GAP;
-
 const YEAR_TITLE_HEIGHT = 44;
-const YEAR_BLOCK_HEIGHT = 84;
 const YEAR_GRID_GAP = 12;
 const YEAR_BOTTOM_GAP = 24;
-const YEAR_ITEM_HEIGHT = YEAR_TITLE_HEIGHT + 4 * YEAR_BLOCK_HEIGHT + 3 * YEAR_GRID_GAP + YEAR_BOTTOM_GAP;
+
+function getGeometry(isWide: boolean) {
+  const dayCellHeight = isWide ? 118 : 68;
+  const yearBlockHeight = isWide ? 112 : 84;
+  return {
+    dayCellHeight,
+    monthItemHeight: MONTH_HEADER_HEIGHT + WEEKDAY_ROW_HEIGHT + 6 * dayCellHeight + MONTH_BOTTOM_GAP,
+    yearBlockHeight,
+    yearItemHeight: YEAR_TITLE_HEIGHT + 4 * yearBlockHeight + 3 * YEAR_GRID_GAP + YEAR_BOTTOM_GAP,
+  };
+}
 
 // Scroll ranges around the current date.
 const MONTHS_BACK = 24;
@@ -50,8 +69,15 @@ export default function CalendarScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const { data: tasks } = useTasks();
   const urgencyThresholdHours = useUrgencyThreshold();
+
+  // Desktop/web: taller day cells showing NAMED task/event bars instead of
+  // dots — the extra space is there, use it (developer request 2026-07-11).
+  const isWide = Platform.OS === 'web' && windowWidth >= 900;
+  const { dayCellHeight, monthItemHeight, yearBlockHeight, yearItemHeight } = getGeometry(isWide);
+  const MAX_BARS = 3;
 
   const now = new Date();
   const todayKey = localDateKey(now);
@@ -150,13 +176,15 @@ export default function CalendarScreen() {
   const CONTAINER_TOP = insets.top + 38;
 
   /** Estimated center of month `m`'s block in the year grid (the target
-   *  year sits at the top of the list after the switch). */
+   *  year sits at the top of the list after the switch). Content is centered
+   *  at CONTENT_MAX_WIDTH on desktop, so wide screens offset accordingly. */
   function yearBlockCenter(m: number): { x: number; y: number } {
     const col = m % 3;
     const row = Math.floor(m / 3);
-    const gridWidth = 360; // close enough across phones; precision not critical
-    const x = 16 + (col + 0.5) * (gridWidth / 3);
-    const y = YEAR_TITLE_HEIGHT + row * (YEAR_BLOCK_HEIGHT + YEAR_GRID_GAP) + YEAR_BLOCK_HEIGHT / 2;
+    const contentWidth = Math.min(windowWidth, CONTENT_MAX_WIDTH);
+    const offsetLeft = Math.max(0, (windowWidth - contentWidth) / 2);
+    const x = offsetLeft + 16 + (col + 0.5) * ((contentWidth - 32) / 3);
+    const y = YEAR_TITLE_HEIGHT + row * (yearBlockHeight + YEAR_GRID_GAP) + yearBlockHeight / 2;
     return { x, y };
   }
 
@@ -176,9 +204,22 @@ export default function CalendarScreen() {
     return colors.statusOngoingAccent;
   }
 
+  /** Desktop bars carry the status the dots carry on the phone: status
+   *  surface as the bar fill, status accent as a left tick. */
+  function taskBarColors(task: Task): { bg: string; fg: string; accent: string; done: boolean } {
+    const status = deriveStatus(task, { urgencyThresholdHours });
+    if (status === 'overdue')
+      return { bg: colors.statusOverdueBg, fg: colors.textPrimary, accent: colors.statusOverdueAccent, done: false };
+    if (status === 'urgent')
+      return { bg: colors.statusUrgentBg, fg: colors.textPrimary, accent: colors.statusUrgentAccent, done: false };
+    if (status === 'completed')
+      return { bg: colors.surfaceSunken, fg: colors.textTertiary, accent: colors.textTertiary, done: true };
+    return { bg: colors.statusOngoingBg, fg: colors.textPrimary, accent: colors.statusOngoingAccent, done: false };
+  }
+
   function renderDayCell(date: Date | null, index: number, isCurrentMonth: boolean) {
     if (!date) {
-      return <View key={`blank-${index}`} style={styles.dayCell} />;
+      return <View key={`blank-${index}`} style={[styles.dayCell, { height: dayCellHeight }]} />;
     }
     const key = localDateKey(date);
     const dayTasks = byDay.get(key) ?? [];
@@ -203,7 +244,8 @@ export default function CalendarScreen() {
         accessibilityLabel={`${date.toDateString()}, ${dayTasks.length} tasks`}
         style={[
           styles.dayCell,
-          { borderColor: colors.borderSubtle },
+          { height: dayCellHeight, borderColor: colors.borderSubtle },
+          isWide && styles.dayCellWide,
           hasOverdue && { backgroundColor: colors.statusOverdueBg, borderRadius: 8 },
         ]}>
         <View style={[styles.dayNumberWrap, isToday && { backgroundColor: colors.accent, borderRadius: 999 }]}>
@@ -226,21 +268,64 @@ export default function CalendarScreen() {
             {date.getDate()}
           </Text>
         </View>
-        <View style={styles.dotRow}>
-          {/* Events are visually distinct: hollow ring vs solid task dots
-              (ring takes the day's first event color). */}
-          {dayEvents && dayEvents.length > 0 && (
-            <View
-              style={[styles.eventRing, { borderColor: dayEvents[0].color ?? colors.statusEventAccent }]}
-            />
-          )}
-          {dayTasks.slice(0, 3).map((t) => (
-            <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
-          ))}
-          {dayTasks.length > 3 && (
-            <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
-          )}
-        </View>
+        {isWide ? (
+          // Desktop: named bars — events first (dashed outline in the event
+          // color, matching the event cards), then tasks (status-tinted).
+          <View style={styles.barsColumn}>
+            {(dayEvents ?? []).slice(0, MAX_BARS).map((e) => (
+              <View
+                key={`e-${e.id}`}
+                style={[styles.bar, styles.eventBar, { borderColor: e.color ?? colors.statusEventAccent }]}>
+                <Text
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.2}
+                  style={[styles.barText, { color: e.color ?? colors.statusEventAccent }]}>
+                  {e.title}
+                </Text>
+              </View>
+            ))}
+            {dayTasks.slice(0, Math.max(0, MAX_BARS - (dayEvents?.length ?? 0))).map((t) => {
+              const bar = taskBarColors(t);
+              return (
+                <View
+                  key={t.id}
+                  style={[styles.bar, { backgroundColor: bar.bg, borderLeftWidth: 2, borderLeftColor: bar.accent }]}>
+                  <Text
+                    numberOfLines={1}
+                    maxFontSizeMultiplier={1.2}
+                    style={[
+                      styles.barText,
+                      { color: bar.fg },
+                      bar.done && { textDecorationLine: 'line-through' },
+                    ]}>
+                    {t.title}
+                  </Text>
+                </View>
+              );
+            })}
+            {(dayEvents?.length ?? 0) + dayTasks.length > MAX_BARS && (
+              <Text maxFontSizeMultiplier={1.2} style={[styles.barText, { color: colors.textTertiary, paddingHorizontal: 4 }]}>
+                +{(dayEvents?.length ?? 0) + dayTasks.length - MAX_BARS} more
+              </Text>
+            )}
+          </View>
+        ) : (
+          <View style={styles.dotRow}>
+            {/* Events are visually distinct: hollow ring vs solid task dots
+                (ring takes the day's first event color). */}
+            {dayEvents && dayEvents.length > 0 && (
+              <View
+                style={[styles.eventRing, { borderColor: dayEvents[0].color ?? colors.statusEventAccent }]}
+              />
+            )}
+            {dayTasks.slice(0, 3).map((t) => (
+              <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
+            ))}
+            {dayTasks.length > 3 && (
+              <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
+            )}
+          </View>
+        )}
       </Pressable>
     );
   }
@@ -249,7 +334,7 @@ export default function CalendarScreen() {
     const isCurrentMonth = item.year === now.getFullYear() && item.month === now.getMonth();
     const weeks = buildMonthMatrix(item.year, item.month, true);
     return (
-      <View style={{ height: MONTH_ITEM_HEIGHT }}>
+      <View style={{ height: monthItemHeight }}>
         {/* Current month reads full-color; all others grey — the scroll
             position IS the navigation, so color marks "you are here". */}
         <Text
@@ -262,7 +347,7 @@ export default function CalendarScreen() {
           {MONTH_NAMES[item.month]} {item.year}
         </Text>
         <View style={styles.weekRow}>
-          {WEEKDAY_LABELS.map((label, i) => (
+          {(isWide ? WEEKDAY_LABELS_WIDE : WEEKDAY_LABELS).map((label, i) => (
             <Text
               key={i}
               maxFontSizeMultiplier={1.4}
@@ -292,7 +377,7 @@ export default function CalendarScreen() {
   function renderYear({ item: year }: { item: number }) {
     const isCurrentYear = year === now.getFullYear();
     return (
-      <View style={{ height: YEAR_ITEM_HEIGHT }}>
+      <View style={{ height: yearItemHeight }}>
         <Text
           style={[
             type.h1,
@@ -323,7 +408,7 @@ export default function CalendarScreen() {
                 style={[
                   styles.monthBlock,
                   {
-                    height: YEAR_BLOCK_HEIGHT,
+                    height: yearBlockHeight,
                     backgroundColor: colors.surfaceElevated,
                     borderColor: isCurrent ? colors.accent : colors.borderSubtle,
                     borderWidth: isCurrent ? 1.5 : 1,
@@ -350,8 +435,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-    <View style={styles.pageWidth}>
-      <View style={[styles.topBar, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
+      <View style={[styles.topBar, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
         {mode === 'month' ? (
           <Pressable
             onPress={() => {
@@ -381,13 +465,15 @@ export default function CalendarScreen() {
       <Animated.View style={[styles.zoomContainer, zoomStyle]}>
       {mode === 'month' ? (
         <FlatList
-          key={`months-${anchor.year}-${anchor.month}`}
+          // isWide in the key: crossing the desktop breakpoint changes row
+          // geometry, so the list must remount to re-apply scroll math.
+          key={`months-${anchor.year}-${anchor.month}-${isWide ? 'wide' : 'narrow'}`}
           data={monthItems}
           renderItem={renderMonth}
           keyExtractor={(item) => `${item.year}-${item.month}`}
           getItemLayout={(_, index) => ({
-            length: MONTH_ITEM_HEIGHT,
-            offset: MONTH_ITEM_HEIGHT * index,
+            length: monthItemHeight,
+            offset: monthItemHeight * index,
             index,
           })}
           initialScrollIndex={Math.max(0, anchorIndex)}
@@ -395,7 +481,7 @@ export default function CalendarScreen() {
           viewabilityConfig={{ itemVisiblePercentThreshold: 40 }}
           onLayout={onIncomingLayout}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
+          contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}
         />
       ) : (
         <FlatList
@@ -403,25 +489,23 @@ export default function CalendarScreen() {
           renderItem={renderYear}
           keyExtractor={(year) => String(year)}
           getItemLayout={(_, index) => ({
-            length: YEAR_ITEM_HEIGHT,
-            offset: YEAR_ITEM_HEIGHT * index,
+            length: yearItemHeight,
+            offset: yearItemHeight * index,
             index,
           })}
           initialScrollIndex={years.indexOf(visibleYear) >= 0 ? years.indexOf(visibleYear) : YEARS_BACK}
           onLayout={onIncomingLayout}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
+          contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}
         />
       )}
       </Animated.View>
-    </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   zoomContainer: { flex: 1 },
   topBar: {
     flexDirection: 'row',
@@ -442,17 +526,41 @@ const styles = StyleSheet.create({
   weekdayLabel: { flex: 1, textAlign: 'center', height: WEEKDAY_ROW_HEIGHT, paddingTop: 4 },
   dayCell: {
     flex: 1,
-    height: DAY_CELL_HEIGHT,
     alignItems: 'center',
     paddingTop: 6,
     gap: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  // Desktop: bars stretch the cell's full width; the number stays centered.
+  dayCellWide: {
+    alignItems: 'stretch',
   },
   dayNumberWrap: {
     width: 30,
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
+  },
+  barsColumn: {
+    width: '100%',
+    paddingHorizontal: 3,
+    gap: 2,
+  },
+  bar: {
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  eventBar: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  barText: {
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: '500',
   },
   dotRow: {
     flexDirection: 'row',

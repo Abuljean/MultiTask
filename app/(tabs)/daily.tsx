@@ -36,6 +36,7 @@ import {
   type RecurringTask,
 } from '@/lib/tasks/use-recurring';
 import { useTasks } from '@/lib/tasks/use-tasks';
+import { pageContent } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function DailyScreen() {
@@ -184,10 +185,9 @@ export default function DailyScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-    <View style={styles.pageWidth}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
-        contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}>
+        contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
         <Text style={[type.h1, { color: colors.textPrimary, paddingTop: space.s3 }]}>Daily</Text>
         <Text style={[type.body, { color: colors.textSecondary, marginBottom: space.s4 }]}>
           {today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -298,13 +298,11 @@ export default function DailyScreen() {
         )}
       </ScrollView>
     </View>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',

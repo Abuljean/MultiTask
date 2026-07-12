@@ -24,6 +24,7 @@ import {
   sendTestNotification,
 } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
+import { pageContent } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
 const THRESHOLD_OPTIONS = [12, 24, 48, 72];
@@ -171,9 +172,8 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-    <View style={styles.pageWidth}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}>
+        contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
         <Text style={[type.h1, { color: colors.textPrimary, paddingVertical: space.s3 }]}>Settings</Text>
 
         {/* ---------------------------- Profile ---------------------------- */}
@@ -331,13 +331,11 @@ export default function SettingsScreen() {
         }}
       />
     </View>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',

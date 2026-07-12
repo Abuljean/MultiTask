@@ -21,6 +21,7 @@ import { confirmDialog } from '@/lib/confirm';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import { EMPTY_FILTERS, filterTasks, hasActiveFilters, type TaskFilters } from '@/lib/tasks/filter';
 import { groupTasks } from '@/lib/tasks/sections';
+import { pageContent } from '@/lib/theme/layout';
 import {
   useBulkPermanentlyDeleteTasks,
   useBulkRestoreTasks,
@@ -239,8 +240,10 @@ export default function TaskListScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-    <View style={styles.pageWidth}>
-      <View style={[styles.titleRow, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
+      {/* The SCROLLABLE spans the window (scrollbar at the true edge; swipe
+          exits travel the full viewport) — content centers itself via
+          pageContent inside contentContainerStyle. */}
+      <View style={[styles.titleRow, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
         <View style={styles.titleActions}>
           <SyncStatusDot />
@@ -256,13 +259,13 @@ export default function TaskListScreen() {
 
       {isLoading ? (
         // Skeleton per docs/design/05: grey placeholder cards, no shimmer.
-        <View style={{ paddingHorizontal: space.s4, gap: space.s3 }}>
+        <View style={[pageContent, { paddingHorizontal: space.s4, gap: space.s3 }]}>
           {[0, 1, 2, 3].map((i) => (
             <View key={i} style={{ height: 88, borderRadius: 16, backgroundColor: colors.surfaceSunken }} />
           ))}
         </View>
       ) : error ? (
-        <View style={{ paddingHorizontal: space.s4 }}>
+        <View style={[pageContent, { paddingHorizontal: space.s4 }]}>
           <Text style={[type.body, { color: colors.textPrimary }]}>Couldn’t load tasks.</Text>
           <Text style={[type.body, { color: colors.accent, marginTop: space.s2 }]} onPress={() => refetch()}>
             Retry
@@ -289,7 +292,7 @@ export default function TaskListScreen() {
             ) : null
           }
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }}
+          contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}
           renderSectionHeader={({ section }) =>
             section.key === 'completed' || section.key === 'deleted' ? (
               renderCollapsibleHeader(section.key)
@@ -322,14 +325,11 @@ export default function TaskListScreen() {
 
       <Fab bottom={insets.bottom + 24} onPress={() => router.push('/quick-add')} />
     </View>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  // Desktop/web: content stays readable instead of stretching edge-to-edge.
-  pageWidth: { flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

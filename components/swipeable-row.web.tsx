@@ -159,7 +159,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 56,
+    // Generous on desktop (developer feedback): the reveal should trigger
+    // well before the pointer reaches the card's edge.
+    width: 120,
     zIndex: 10,
   },
   edgeLeft: { left: 0 },

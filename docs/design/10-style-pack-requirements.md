@@ -15,10 +15,12 @@
 
 - **FMT-1** A pack is a ZIP archive with the extension `.mtstyle`, at most **15 MB**.
 - **FMT-2** Root must contain `manifest.json` with exactly: `schema_version` (integer), `id` (reverse-DNS string, e.g. `dev.abuljean.cherry-blossoms`), `name`, `author`, `version` (semver), `description`, `platforms` (array of `ios|android|web|desktop|watch|widgets`), `previews` (file list).
-- **FMT-3** Optional root files: `tokens.json`, `motion.json`; optional folders: `assets/`, `fonts/`, `previews/`, `sounds/` (v2 — ignored until the app supports it), `icons/` (alternate app icons per §4.2). Anything else → reject.
+- **FMT-3** Optional root files: `tokens.json`, `motion.json`; optional folders: `assets/`, `fonts/`, `previews/`, `sounds/` (§4.7), `effects/` (§4.6), `icons/` (alternate app icons per §4.2). Anything else → reject.
 - **FMT-4** `tokens.json` must provide **both** `light` and `dark` variants for every color it overrides. Partial single-mode packs → reject.
 - **FMT-5** Fonts must be TTF/OTF with a `license` field per font in the manifest. Fonts without license attestation → reject.
 - **FMT-6** Images: PNG/WebP (≤2048px longest side, @1x/@2x/@3x sets) or SVG (no `<script>`, no external refs). Previews: `cover.png` (1024×1024) mandatory for marketplace listing; `preview.mp4` (≤20s, ≤10 MB) or `preview.gif` optional but required for marketplace.
+- **FMT-8** Effects (`effects/`): Lottie JSON (self-contained, no external refs/images-by-URL, no expressions escaping the composition, ≤300 KB each) or sprite sheet (PNG ≤2048px + timing JSON, fps ≤60, loop=false). Each effect declares its hook (§4.6) in the manifest; unknown hooks → reject.
+- **FMT-9** Sounds (`sounds/`): MP3/AAC/WAV, ≤2s, ≤200 KB each, hook-named per §4.7.
 - **FMT-7** `schema_version` newer than the app supports → reject with "update the app"; older versions migrate silently.
 
 ## 3. Validator requirements (import-time, on-device AND at marketplace submission)
@@ -28,7 +30,10 @@
 - **VAL-3** The four status accents remain **pairwise distinguishable**: minimum ΔE (CIE76) of 20 between any two of ongoing/urgent/overdue accents in both modes.
 - **VAL-4** Every motion value inside the ranges of §4.4. Out-of-range → clamp with a warning at import (not rejection).
 - **VAL-5** Background art passes the automated busyness ceiling (mean local contrast of the texture ≤ threshold to be tuned with the first packs) — plus **manual developer approval ("the calm test") for marketplace listing**.
-- **VAL-6** Size budgets per FMT-1/FMT-6.
+- **VAL-6** Size budgets per FMT-1/FMT-6/FMT-8/FMT-9.
+- **VAL-7** Effects: duration ≤ the per-hook cap (§4.6), renders within the overlay bounds, no Lottie external refs. Over-duration → reject with the hook named.
+- **VAL-8** Sounds: length/size per FMT-9 (reject); loudness outside −16 LUFS ±3 → warn.
+- **VAL-9** Hover parameters within §4.5 ranges → clamp with warning (same policy as motion).
 
 ## 4. Customization surface — the complete inventory
 
@@ -52,10 +57,11 @@ Everything in `lib/theme/tokens.ts` `ThemeColors` (light + dark), plus:
 ### 4.3 Asset slots (`assets/`, all optional)
 | Slot key | Renders as | Spec |
 |---|---|---|
-| `card.texture.{status}` | Card background art per status (default/ongoing/urgent/overdue/completed) | full-bleed under content, ≤8% visual weight |
+| `card.design.{status}` | **A complete card design per status** — statuses: `default`, `ongoing` (active), `urgent`, `overdue`, `completed`, `deleted`. Each status block may set ALL of: background texture, surface color, border, accent bar, corner ornament, status glyph, title/date treatment, hover effect (§4.5), and entrance/exit effect hooks (§4.6). A pack may style one status or all six; unstyled statuses fall back to tokens. | per-status; text legibility + status distinguishability (VAL-2/3) still enforced on the RESULT |
+| `card.texture.{status}` | Card background art per status (shorthand when only the texture changes) | full-bleed under content, ≤8% visual weight |
 | `card.corner.{status?}` | Corner ornament, optionally per status | ≤48×48pt |
-| `card.accentBar` | The status bar treatment | width 2–6, solid/pattern/gradient |
-| `card.border` | Card border style | solid/dashed/none, 0–2pt |
+| `card.accentBar.{status?}` | The status bar treatment, optionally per status | width 2–6, solid/pattern/gradient |
+| `card.border.{status?}` | Card border style, optionally per status | solid/dashed/none, 0–2pt |
 | `card.strikethrough` | Completed title strike | color/thickness 1–2/style straight or hand-drawn squiggle asset |
 | `card.dueChip` | Due-date treatment | plain text (default) or chip background |
 | `badge.priority.{1,2,3}` | Priority tier badge art | 20pt height |
@@ -110,18 +116,53 @@ Everything in `lib/theme/tokens.ts` `ThemeColors` (light + dark), plus:
 | `dayZoom.ms` | 260 | 180–400 |
 | `toast.entrance.spring` | snappy (22/260) | d 12–30 / k 120–300 |
 | `fab.pressScale` | 0.9 | 0.8–0.95 |
-| `completion.effect` | none | built-in effect library (`petals`, `sparkle`, `checkpop`, `confettiMinimal`, none) ≤600ms; custom sprite-sheet effects are v2 |
-| `delete.effect` / `restore.effect` | none | same library |
+| `completion.effect` | none | built-in effect library (`petals`, `sparkle`, `checkpop`, `confettiMinimal`, none) ≤600ms, OR a creator-authored effect from `effects/` (§4.6) |
+| `delete.effect` / `restore.effect` | none | same options |
 | `hover.reveal.px` (web) | 88 | 56–120 |
 | `hover.reveal.ms` (web) | 180 | 120–300 |
 
-### 4.5 Sounds (`sounds/`, v2 — every entry optional, master default OFF)
-`complete`, `delete`, `undo`, `add`, `notification` — ≤1s each, loudness-normalized, user toggle overrides packs.
+### 4.5 Hover effects (web/desktop — every card type: task, event, recurring row, calendar tile, pack cover)
+Declared per card type, optionally per status (so an overdue card can hover differently than a completed one). All parameters, all optional:
 
-### 4.6 Geometry constants (NOT customizable — published so designers size assets correctly)
+| Key | Default | Allowed range |
+|---|---|---|
+| `hover.lift.px` | 0 | 0–6 (translateY up) |
+| `hover.scale` | 1.0 | 1.0–1.03 |
+| `hover.tilt.deg` | 0 | 0–2 (subtle 3D tilt toward cursor) |
+| `hover.shadowBloom` | 0 | 0–0.25 extra shadow opacity |
+| `hover.borderGlow` | none | any pack color, ≤2pt, contrast-checked |
+| `hover.overlay` | none | asset slot `card.hover.{status?}` — art that fades in on hover, ≤10% visual weight |
+| `hover.ms` | 180 | 120–300 (in AND out — no lingering) |
+| `hover.effect` | none | an effect from §4.6 played once on hover-enter, ≤400ms |
+
+Hover is a web/desktop-only layer; native touch ignores it entirely. The calm ceiling applies: hover may acknowledge the cursor, never chase it.
+
+### 4.6 Creator-authored animation effects (`effects/` — declarative only, still NO code)
+Creators ship their own animations as **Lottie JSON** (preferred; must be self-contained — no external refs, no expressions that reach outside the composition) or **sprite sheets** (PNG strip + a timing JSON: frame size, fps ≤60, loop=false). Each effect is declared in the manifest with the **hook** it attaches to:
+
+| Hook | Fires when | Max duration |
+|---|---|---|
+| `effect.complete` | swipe-complete crosses threshold / hover-complete clicked | 600ms |
+| `effect.delete` | swipe-delete / hover-delete | 600ms |
+| `effect.restore` | restore from completed/deleted | 600ms |
+| `effect.undo` | undo toast action taken | 400ms |
+| `effect.add` | new task card enters after creation | 600ms |
+| `effect.recurringCheck` | daily recurring row checked off | 500ms |
+| `effect.toast` | undo toast appears (plays inside the toast) | 300ms |
+| `effect.fabPress` | FAB pressed (plays on/around the FAB) | 250ms |
+| `effect.emptyTrash` / `effect.clearAll` | bulk cascade finishes (one effect for the batch, not per card) | 800ms |
+| `effect.hover.{cardType}` | hover-enter (web/desktop, per §4.5) | 400ms |
+| `effect.calendarToday` | calendar opens on the current month (today's tile) | 500ms |
+
+Rules: effects render in an overlay layer and must never move, hide, or reflow the content under them (title + due date stay legible throughout — Rule 2); durations are hard caps enforced by the validator; `AccessibilityInfo` reduced-motion **skips all creator effects entirely** (the underlying state change still animates via the app's reduced fallbacks); one effect per hook per pack.
+
+### 4.7 Sounds (`sounds/` — creator-supplied files, every entry optional, master toggle default OFF)
+Creators may ship their **own sound files**: MP3/AAC/WAV, ≤2s each, ≤200 KB each, loudness-normalized to −16 LUFS (validator checks length/size; loudness warned, not rejected). Hooks: `complete`, `delete`, `undo`, `add`, `recurringCheck`, `toast`, `notification` (notification sound must also fit OS notification-sound limits: ≤30s iOS, packaged per-platform). The user's Sounds toggle in Settings is master — OFF by default, and it always overrides packs. No sound may play more than once per user action (the bulk cascade plays ONE sound, not N).
+
+### 4.8 Geometry constants (NOT customizable — published so designers size assets correctly)
 Card: padding 16, radius 16 (unless overridden within range), accent bar 3×full-height. Pills: height 20, radius full. FAB: 56Ø. Calendar day cell: 68pt tall, task dots 6pt, event ring 7pt. Toast: radius 16, bottom offset 64. Type scale: 32/24/18/15/12 (weights 700/600/600/400/500). Spacing scale: 4/8/12/16/20/24/32/40/48. Phone canvas: 360–430pt wide; supply 3x assets.
 
-### 4.7 Locked (never customizable)
+### 4.9 Locked (never customizable)
 Status semantics & non-color encodings (accent bar/icons/strikethrough), layout structure & density, copy, tap targets ≥44pt, notification content, reduced-motion collapse (OS setting always wins over pack motion), sign-in/auth UI beyond background.
 
 ## 5. In-app requirements
@@ -142,7 +183,9 @@ Status semantics & non-color encodings (accent bar/icons/strikethrough), layout 
 
 ## 7. Submission requirements (for the public designer guide)
 
-A submission = the `.mtstyle` + `cover.png` + preview video/GIF + light & dark screenshots of the task list and calendar + license attestation for every asset/font + author contact. Acceptance = VAL-1..6 pass + calm-test approval + name/content policy (no trademarks, no offensive content). Rejections state the failed requirement number.
+A submission = the `.mtstyle` + `cover.png` + preview video/GIF + light & dark screenshots of the task list and calendar + license attestation for every asset/font + author contact. Acceptance = VAL-1..9 pass + calm-test approval + name/content policy (no trademarks, no offensive content). Rejections state the failed requirement number.
+
+The designer guide page also publishes the **AI designer prompt** (`11-style-pack-ai-designer-prompt.md`) — a copyable prompt that teaches any AI the app's full visual design and customization surface so it can co-design a valid pack.
 
 ## 8. Non-functional requirements
 
@@ -153,4 +196,4 @@ A submission = the `.mtstyle` + `cover.png` + preview video/GIF + light & dark s
 
 ## 9. Open items (decide during the build phase)
 
-Pricing tiers; live try-on preview (v2); Lottie/animated textures (v2); sounds (v2, off by default); watch theming depth; whether the web marketplace page doubles as a public gallery.
+Pricing tiers; live try-on preview (v2); animated card TEXTURES (looping background motion — still v2; one-shot effects are v1 per §4.6); watch theming depth; whether the web marketplace page doubles as a public gallery. (Creator effects and sounds were promoted from v2 to v1 format features on 2026-07-11 — developer decision.)

@@ -67,36 +67,6 @@ function leadLabel(minutes: number): string {
   return `${minutes} minutes`;
 }
 
-/** Diagnostics: schedules a notification 10 seconds out. If this doesn't
- *  arrive with permission granted and the app backgrounded, the environment
- *  (e.g. Expo Go) can't deliver scheduled notifications at all. */
-export async function sendTestNotification(): Promise<boolean> {
-  if (Platform.OS === 'web') return false;
-  const granted = await ensureNotificationPermission();
-  if (!granted) return false;
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Test notification',
-      body: 'Scheduled notifications are working.',
-      sound: true,
-      data: { source: 'multitask-test' },
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: 10,
-      channelId: 'default',
-    },
-  });
-  return true;
-}
-
-/** How many task notifications are currently scheduled (diagnostics). */
-export async function countScheduledTaskNotifications(): Promise<number> {
-  if (Platform.OS === 'web') return 0;
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  return scheduled.filter((n) => n.content.data?.source === SOURCE_TAG).length;
-}
-
 /** Cancel-and-reschedule all task notifications. Call whenever tasks or the
  *  relevant settings change; cheap enough to run debounced. */
 export async function syncTaskNotifications(

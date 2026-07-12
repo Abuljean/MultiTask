@@ -4,7 +4,16 @@
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, SectionList, StyleSheet, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
@@ -44,23 +53,28 @@ export default function TaskListScreen() {
   const [deletedCollapsed, toggleDeleted] = useCollapsedSection('ui.deletedCollapsed');
   const urgencyThresholdHours = useUrgencyThreshold();
 
-  // Search + filter. NOT rendered at all until deliberately revealed — an
-  // overscroll pull at the top, or the magnifier button (developer: keep it
-  // hidden, it's a lot of information). Auto-hides again on scroll when no
-  // criteria are active.
+  // Search + filter. On PHONES: not rendered until deliberately revealed —
+  // an overscroll pull at the top, or the magnifier button (developer: keep
+  // it hidden, it's a lot of information) — and auto-hidden again on scroll
+  // when no criteria are active. On DESKTOP/WEB: permanently open, filters
+  // included — the space exists (developer request 2026-07-11).
+  const { width: windowWidth } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && windowWidth >= 900;
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
-  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(isDesktop);
   const [searchVisible, setSearchVisible] = useState(false);
+  const searchShown = searchVisible || isDesktop;
   const searching = hasActiveFilters(filters);
 
   function showSearch() {
-    if (!searchVisible) {
+    if (!searchShown) {
       animateListChanges();
       setSearchVisible(true);
     }
   }
 
   function hideSearch() {
+    if (isDesktop) return; // always open on desktop
     animateListChanges();
     setSearchVisible(false);
     setFilterPanelOpen(false);
@@ -68,12 +82,13 @@ export default function TaskListScreen() {
   }
 
   function onListScroll(event: { nativeEvent: { contentOffset: { y: number } } }) {
+    if (isDesktop) return;
     const y = event.nativeEvent.contentOffset.y;
-    if (!searchVisible && y < -70) {
+    if (!searchShown && y < -70) {
       // A firm, deliberate pull past the top (iOS overscroll) — tuned hard
       // on purpose (developer request); casual bounces never trigger it.
       showSearch();
-    } else if (searchVisible && !searching && !filterPanelOpen && y > 100) {
+    } else if (searchShown && !searching && !filterPanelOpen && y > 100) {
       // Nothing active and the user is scrolling on — tuck it away.
       animateListChanges();
       setSearchVisible(false);
@@ -247,13 +262,15 @@ export default function TaskListScreen() {
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
         <View style={styles.titleActions}>
           <SyncStatusDot />
-          <Pressable
-            onPress={() => (searchVisible ? hideSearch() : showSearch())}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={searchVisible ? 'Hide search' : 'Search tasks'}>
-            <IconSymbol name="magnifyingglass" size={20} color={searchVisible ? colors.accent : colors.textSecondary} />
-          </Pressable>
+          {!isDesktop && (
+            <Pressable
+              onPress={() => (searchVisible ? hideSearch() : showSearch())}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={searchVisible ? 'Hide search' : 'Search tasks'}>
+              <IconSymbol name="magnifyingglass" size={20} color={searchVisible ? colors.accent : colors.textSecondary} />
+            </Pressable>
+          )}
         </View>
       </View>
 
@@ -280,7 +297,7 @@ export default function TaskListScreen() {
           onScroll={onListScroll}
           scrollEventThrottle={32}
           ListHeaderComponent={
-            searchVisible ? (
+            searchShown ? (
               <SearchFilterBar
                 filters={filters}
                 onChange={setFilters}

@@ -99,15 +99,20 @@ export function SwipeableRow({
 
   function commit(side: 'left' | 'right') {
     setHoverSide(null);
-    // Slide off in the action's direction, then fire — mirrors the swipe.
+    // Slide off in the action's direction, THEN fire — the handler's
+    // optimistic cache update unmounts the row instantly, so firing it
+    // immediately skipped the exit animation entirely (the bug the
+    // developer caught 2026-07-11). Timing mirrors the touch slide-off.
     const direction = side === 'left' ? 1 : -1;
     translateX.value = withTiming(
       direction * screenWidth,
       { duration: 240, easing: Easing.out(Easing.cubic) },
       () => {}
     );
-    if (side === 'left') onSwipeRight();
-    else onSwipeLeft();
+    setTimeout(() => {
+      if (side === 'left') onSwipeRight();
+      else onSwipeLeft();
+    }, 250);
   }
 
   return (

@@ -21,9 +21,12 @@ type Props = {
   onDelete?: (task: Task) => void;
   onPress?: (task: Task) => void;
   onLongPress?: (task: Task) => void;
+  /** Desktop day page shows descriptions inline (the space exists there);
+   *  phone cards keep description in the detail view only. */
+  showDescription?: boolean;
 };
 
-export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPress }: Props) {
+export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPress, showDescription }: Props) {
   const theme = useTheme();
   const { colors, space, radius, type, monoFont } = theme;
   const urgencyThresholdHours = useUrgencyThreshold();
@@ -90,6 +93,12 @@ export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPres
             {task.dueDate ? formatDueDate(task.dueDate) : 'No due date'}
           </Text>
         </View>
+
+        {showDescription && task.description.length > 0 && (
+          <Text numberOfLines={4} style={[type.body, { color: colors.textSecondary, marginTop: 2 }]}>
+            {task.description}
+          </Text>
+        )}
 
         <View style={[styles.pillRow, { gap: space.s2, marginTop: space.s2 }]}>
           {task.priority != null && <PriorityBadge priority={task.priority} />}

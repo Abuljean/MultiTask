@@ -18,10 +18,8 @@ import { useNotificationLead } from '@/hooks/use-notification-lead';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { base64ToBytes } from '@/lib/base64';
 import {
-  countScheduledTaskNotifications,
   ensureNotificationPermission,
   getNotificationPermissionStatus,
-  sendTestNotification,
 } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { pageContent } from '@/lib/theme/layout';
@@ -39,11 +37,9 @@ export default function SettingsScreen() {
   const leadMinutes = useNotificationLead();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifStatus, setNotifStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
-  const [scheduledCount, setScheduledCount] = useState<number | null>(null);
 
   useEffect(() => {
     getNotificationPermissionStatus().then(setNotifStatus);
-    countScheduledTaskNotifications().then(setScheduledCount);
   }, []);
 
   const user = session?.user;
@@ -249,31 +245,21 @@ export default function SettingsScreen() {
         {sectionTitle('Notifications')}
         <Text style={[type.body, { color: colors.textSecondary, marginBottom: space.s2 }]}>
           {notifStatus === 'granted'
-            ? 'On — you’ll be notified when a task turns urgent, and before its deadline.'
+            ? Platform.OS === 'web'
+              ? 'On — while Multitask is open, you’ll be notified when a task turns urgent, and before its deadline.'
+              : 'On — you’ll be notified when a task turns urgent, and before its deadline.'
             : notifStatus === 'denied'
-              ? 'Off — enable notifications for Multitask in your phone’s Settings.'
+              ? Platform.OS === 'web'
+                ? 'Off — allow notifications for this site in your browser’s settings.'
+                : 'Off — enable notifications for Multitask in your phone’s Settings.'
               : 'Not set up yet.'}
         </Text>
-        {notifStatus === 'granted' && scheduledCount !== null && (
-          <Text style={[type.caption, { color: colors.textTertiary, marginBottom: space.s2 }]}>
-            {scheduledCount} task reminder{scheduledCount === 1 ? '' : 's'} currently scheduled.
-          </Text>
-        )}
         {notifStatus !== 'granted' &&
           actionRow('Enable notifications', async () => {
             const granted = await ensureNotificationPermission();
             setNotifStatus(await getNotificationPermissionStatus());
             if (granted) toast.show({ message: 'Notifications enabled.' });
           })}
-        {actionRow('Send test notification (10s)', async () => {
-          const ok = await sendTestNotification();
-          setNotifStatus(await getNotificationPermissionStatus());
-          toast.show({
-            message: ok
-              ? 'Scheduled — background the app and wait 10 seconds.'
-              : 'Permission missing — enable notifications first.',
-          });
-        })}
         <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s2, marginBottom: space.s2 }]}>
           Remind me before a deadline:
         </Text>

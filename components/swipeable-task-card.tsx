@@ -16,9 +16,10 @@ type Props = {
   enterFrom?: 'left' | 'right' | null;
   onEntered?: (id: number) => void;
   exit?: { to: 'left' | 'right'; delayMs: number } | null;
+  showDescription?: boolean;
 };
 
-export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, enterFrom, onEntered, exit }: Props) {
+export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, enterFrom, onEntered, exit, showDescription }: Props) {
   const { colors } = useTheme();
 
   // Right swipe = complete for live tasks, restore for completed/trashed ones.
@@ -37,7 +38,13 @@ export function SwipeableTaskCard({ task, onSwipeRight, onSwipeLeft, onPress, en
       enterFrom={enterFrom}
       onEntered={onEntered && (() => onEntered(task.id))}
       exit={exit}>
-      <TaskCard task={task} onPress={onPress} onToggleComplete={onSwipeRight} onDelete={onSwipeLeft} />
+      <TaskCard
+        task={task}
+        onPress={onPress}
+        onToggleComplete={onSwipeRight}
+        onDelete={onSwipeLeft}
+        showDescription={showDescription}
+      />
     </SwipeableRow>
   );
 }

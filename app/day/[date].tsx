@@ -5,7 +5,7 @@
 // replaces the native push animation).
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -18,6 +18,7 @@ import { useEvents } from '@/lib/events/use-events';
 import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
 import { useTasks } from '@/lib/tasks/use-tasks';
+import { CONTENT_MAX_WIDTH, pageContent } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function DayScreen() {
@@ -68,7 +69,12 @@ export default function DayScreen() {
   // Drag-down-to-dismiss from the header (restores a standard escape gesture
   // after the zoom transition replaced the native back-swipe — HIG audit).
   const dragY = useSharedValue(0);
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+
+  // Desktop/web: content in a centered column; the exposed gutters CLICK to
+  // dismiss (developer request 2026-07-11) and descriptions show inline —
+  // the space exists on a laptop, use it.
+  const isWide = Platform.OS === 'web' && windowWidth >= 900;
 
   const zoomStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -130,7 +136,16 @@ export default function DayScreen() {
       style={[styles.screen, zoomStyle, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
       <GestureDetector gesture={pagePan}>
         <View style={styles.pageFill}>
-          <View style={[styles.header, { paddingHorizontal: space.s4, paddingVertical: space.s2, gap: space.s2 }]}>
+          {/* Blank space (the side gutters) exits back to the calendar —
+              web/desktop only; the content column renders above this. */}
+          {isWide && (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={close}
+              accessibilityLabel="Back to calendar"
+            />
+          )}
+          <View style={[styles.header, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s2, gap: space.s2 }]}>
             <Pressable
               onPress={close}
               hitSlop={10}
@@ -141,12 +156,21 @@ export default function DayScreen() {
               <Text style={[type.body, { color: colors.accent, fontWeight: '600' }]}>Calendar</Text>
             </Pressable>
           </View>
-          <Text style={[type.h1, { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
-            {title}
-          </Text>
+          <View style={pageContent}>
+            <Text
+              style={[
+                type.h1,
+                { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 },
+              ]}>
+              {title}
+            </Text>
+          </View>
           <GestureDetector gesture={scrollGesture}>
             <ScrollView
               bounces={false}
+              // Wide: the scroller itself is the centered column so clicks
+              // beside it land on the dismiss backdrop.
+              style={isWide && { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' }}
               onScroll={(e) => {
                 scrollTop.value = e.nativeEvent.contentOffset.y;
               }}
@@ -178,6 +202,7 @@ export default function DayScreen() {
                     onPress={(t) => router.push(`/task/${t.id}`)}
                     enterFrom={getEnterFrom(task.id)}
                     onEntered={clearEnterMark}
+                    showDescription={isWide}
                   />
                 ))
               )}

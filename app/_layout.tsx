@@ -13,6 +13,7 @@ import { UndoToastProvider } from '@/components/undo-toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { initNotifications } from '@/lib/notifications';
+import { AppThemeProvider } from '@/lib/theme/use-theme';
 
 // One QueryClient for the app's lifetime (module scope, NOT inside the
 // component — recreating it on re-render would wipe the cache).
@@ -83,11 +84,11 @@ function RootNavigator() {
   );
 }
 
-export default function RootLayout() {
+// Everything that depends on the RESOLVED scheme (user toggle > system)
+// lives inside AppThemeProvider — navigation colors, browser chrome, and
+// the status bar all flip together when the header toggle is tapped.
+function ThemedApp() {
   const colorScheme = useColorScheme();
-  // JetBrains Mono is the identity font for time chips (docs/design/03).
-  // Hold the splash screen until it's ready so text never swaps mid-view.
-  const [fontsLoaded] = useFonts({ JetBrainsMono_500Medium });
 
   // Web: tell the browser which scheme we're rendering so NATIVE chrome
   // (scrollbars, form controls) matches — otherwise dark mode gets a glaring
@@ -97,6 +98,21 @@ export default function RootLayout() {
       document.documentElement.style.colorScheme = colorScheme === 'dark' ? 'dark' : 'light';
     }
   }, [colorScheme]);
+
+  return (
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <UndoToastProvider>
+        <RootNavigator />
+        <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      </UndoToastProvider>
+    </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  // JetBrains Mono is the identity font for time chips (docs/design/03).
+  // Hold the splash screen until it's ready so text never swaps mid-view.
+  const [fontsLoaded] = useFonts({ JetBrainsMono_500Medium });
 
   if (!fontsLoaded) {
     return null;
@@ -108,12 +124,9 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           {/* No-op in Expo Go; boots PowerSync in the dev build. */}
           <SyncBridge />
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <UndoToastProvider>
-              <RootNavigator />
-              <StatusBar style="auto" />
-            </UndoToastProvider>
-          </ThemeProvider>
+          <AppThemeProvider>
+            <ThemedApp />
+          </AppThemeProvider>
         </QueryClientProvider>
       </AuthProvider>
     </GestureHandlerRootView>

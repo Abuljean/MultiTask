@@ -27,6 +27,7 @@ const MAPPING = {
   'chevron.down': 'keyboard-arrow-down',
   plus: 'add',
   'sun.max.fill': 'wb-sunny',
+  'moon.fill': 'dark-mode',
   calendar: 'calendar-today',
   'chevron.left': 'chevron-left',
   'gearshape.fill': 'settings',

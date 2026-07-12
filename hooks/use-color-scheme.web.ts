@@ -1,21 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
-
-/**
- * To support static rendering, this value needs to be re-calculated on the client side for web
- */
-export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
-
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
-
-  const colorScheme = useRNColorScheme();
-
-  if (hasHydrated) {
-    return colorScheme;
-  }
-
-  return 'light';
-}
+// Web variant — same as native now: the resolved scheme honoring the user's
+// toggle. (The old hydration dance existed for static rendering; the app
+// ships as an SPA — web.output "single" — so there is no server pass.)
+export { useResolvedScheme as useColorScheme } from '@/lib/theme/use-theme';

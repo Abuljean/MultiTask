@@ -37,12 +37,13 @@ import {
   useBulkSoftDeleteTasks,
   useTasks,
 } from '@/lib/tasks/use-tasks';
-import { useTheme } from '@/lib/theme/use-theme';
+import { useTheme, useThemeToggle } from '@/lib/theme/use-theme';
 
 export default function TaskListScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, space, type } = useTheme();
+  const { colors, space, type, isDark } = useTheme();
+  const toggleTheme = useThemeToggle();
   const { data: tasks, isLoading, error, refetch } = useTasks();
   const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
   const bulkSoftDelete = useBulkSoftDeleteTasks();
@@ -61,7 +62,9 @@ export default function TaskListScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && windowWidth >= 900;
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
-  const [filterPanelOpen, setFilterPanelOpen] = useState(isDesktop);
+  // Filter chips start collapsed everywhere (developer pick) — the bar's
+  // "Filter" button opens them.
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const searchShown = searchVisible || isDesktop;
   const searching = hasActiveFilters(filters);
@@ -262,6 +265,19 @@ export default function TaskListScreen() {
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
         <View style={styles.titleActions}>
           <SyncStatusDot />
+          {/* Quick light/dark toggle (developer request): no trip to
+              Settings. Explicit choice persists per device. */}
+          <Pressable
+            onPress={toggleTheme}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+            <IconSymbol
+              name={isDark ? 'sun.max.fill' : 'moon.fill'}
+              size={20}
+              color={colors.textSecondary}
+            />
+          </Pressable>
           {!isDesktop && (
             <Pressable
               onPress={() => (searchVisible ? hideSearch() : showSearch())}

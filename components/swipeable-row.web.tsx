@@ -177,9 +177,11 @@ export function SwipeableRow({
             style={[
               styles.hoverRing,
               {
-                borderColor: hoverAuraColor,
+                // A light fade of a glow (developer feedback: full-strength
+                // was too heavy) — translucent ring, soft wide shadow.
+                borderColor: `${hoverAuraColor}66`,
                 borderRadius: (hoverAuraRadius ?? radius.card) + 2,
-                boxShadow: `0 0 10px ${hoverAuraColor}66`,
+                boxShadow: `0 0 14px ${hoverAuraColor}2E`,
               },
               auraStyle,
             ]}

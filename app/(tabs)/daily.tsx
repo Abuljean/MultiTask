@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/event-card';
 import { SwipeableRow } from '@/components/swipeable-row';
+import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
@@ -190,7 +191,10 @@ export default function DailyScreen() {
       <ScrollView
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
         contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
-        <Text style={[type.h1, { color: colors.textPrimary, paddingTop: space.s3 }]}>Daily</Text>
+        <View style={styles.titleRow}>
+          <Text style={[type.h1, { color: colors.textPrimary, paddingTop: space.s3 }]}>Daily</Text>
+          <ThemeToggleButton />
+        </View>
         <Text style={[type.body, { color: colors.textSecondary, marginBottom: space.s4 }]}>
           {today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </Text>
@@ -305,6 +309,11 @@ export default function DailyScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',

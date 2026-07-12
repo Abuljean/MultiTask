@@ -12,6 +12,7 @@ import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InputPromptDialog, type PromptRequest } from '@/components/input-prompt';
+import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { useUndoToast } from '@/components/undo-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useNotificationLead } from '@/hooks/use-notification-lead';
@@ -170,7 +171,10 @@ export default function SettingsScreen() {
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
-        <Text style={[type.h1, { color: colors.textPrimary, paddingVertical: space.s3 }]}>Settings</Text>
+        <View style={styles.titleRow}>
+          <Text style={[type.h1, { color: colors.textPrimary, paddingVertical: space.s3 }]}>Settings</Text>
+          <ThemeToggleButton />
+        </View>
 
         {/* ---------------------------- Profile ---------------------------- */}
         <View
@@ -322,6 +326,11 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',

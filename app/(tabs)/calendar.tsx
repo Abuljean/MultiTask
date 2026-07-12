@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
@@ -453,13 +454,16 @@ export default function CalendarScreen() {
         ) : (
           <Text style={[type.body, { color: colors.textSecondary }]}>Years</Text>
         )}
-        <Pressable
-          onPress={() => router.push('/import-events')}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Import calendar events">
-          <IconSymbol name="tray.and.arrow.down" size={20} color={colors.accent} />
-        </Pressable>
+        <View style={styles.topBarActions}>
+          <Pressable
+            onPress={() => router.push('/import-events')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Import calendar events">
+            <IconSymbol name="tray.and.arrow.down" size={20} color={colors.accent} />
+          </Pressable>
+          <ThemeToggleButton />
+        </View>
       </View>
 
       <Animated.View style={[styles.zoomContainer, zoomStyle]}>
@@ -516,6 +520,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
   monthHeader: {
     height: MONTH_HEADER_HEIGHT,

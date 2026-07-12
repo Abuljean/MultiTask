@@ -20,6 +20,7 @@ import { Fab } from '@/components/fab';
 import { SearchFilterBar } from '@/components/search-filter-bar';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { SyncStatusDot } from '@/components/sync-status-dot';
+import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
@@ -37,13 +38,12 @@ import {
   useBulkSoftDeleteTasks,
   useTasks,
 } from '@/lib/tasks/use-tasks';
-import { useTheme, useThemeToggle } from '@/lib/theme/use-theme';
+import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TaskListScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, space, type, isDark } = useTheme();
-  const toggleTheme = useThemeToggle();
+  const { colors, space, type } = useTheme();
   const { data: tasks, isLoading, error, refetch } = useTasks();
   const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
   const bulkSoftDelete = useBulkSoftDeleteTasks();
@@ -265,19 +265,7 @@ export default function TaskListScreen() {
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
         <View style={styles.titleActions}>
           <SyncStatusDot />
-          {/* Quick light/dark toggle (developer request): no trip to
-              Settings. Explicit choice persists per device. */}
-          <Pressable
-            onPress={toggleTheme}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-            <IconSymbol
-              name={isDark ? 'sun.max.fill' : 'moon.fill'}
-              size={20}
-              color={colors.textSecondary}
-            />
-          </Pressable>
+          <ThemeToggleButton />
           {!isDesktop && (
             <Pressable
               onPress={() => (searchVisible ? hideSearch() : showSearch())}

@@ -4,7 +4,7 @@
 // revealing delete. CLICKING the revealed edge commits the action — same
 // semantics, undo toasts, and trail visuals as the touch version. Entrance
 // and cascade-exit animations match the tuned native values.
-import { useEffect, useState, type ComponentProps, type PropsWithChildren } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type PropsWithChildren } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
@@ -13,6 +13,15 @@ import { useTheme } from '@/lib/theme/use-theme';
 
 const REVEAL_PX = 88; // how far the row slides aside on hover
 const ENTER_DURATION_MS = 647.2; // FINAL tuned value (docs/design/05)
+
+/** Raw DOM mouse events, bypassing RNW's Pressable hover system — which
+ *  fails to deliver hover to a pressable that CONTAINS other pressables
+ *  (the edge zones + card claimed it; the outer wrapper never hovered on a
+ *  real mouse). RNW forwards onMouseEnter/onMouseLeave to the DOM node but
+ *  RN's types don't know them, hence the cast. */
+function mouseHover(onEnter: () => void, onLeave: () => void) {
+  return { onMouseEnter: onEnter, onMouseLeave: onLeave } as Record<string, unknown>;
+}
 
 type IconName = ComponentProps<typeof IconSymbol>['name'];
 
@@ -57,15 +66,23 @@ export function SwipeableRow({
   // developer feedback 2026-07-11). Calm ceiling: 1.5%, no shadow chase.
   const rowHover = useSharedValue(0);
   const [hoverSide, setHoverSide] = useState<'left' | 'right' | null>(null);
+  // While a commit's slide-off runs, the hover-reset effect must NOT touch
+  // translateX — it was overriding the exit with a 180ms slide back to 0,
+  // which read as "instant disappearance" on every real click (a real
+  // pointer is always hovering the zone it clicks; programmatic test
+  // clicks weren't, which is how this shipped broken).
+  const committing = useRef(false);
 
   // Hover slides the row aside; leaving slides it back.
   useEffect(() => {
+    if (committing.current) return;
     const target = hoverSide === 'left' ? REVEAL_PX : hoverSide === 'right' ? -REVEAL_PX : 0;
     translateX.value = withTiming(target, { duration: 180, easing: Easing.out(Easing.cubic) });
   }, [hoverSide, translateX]);
 
   // Reset when the row's logical state changes.
   useEffect(() => {
+    committing.current = false;
     translateX.value = 0;
     setHoverSide(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,6 +127,7 @@ export function SwipeableRow({
   }));
 
   function commit(side: 'left' | 'right') {
+    committing.current = true;
     setHoverSide(null);
     // Slide off in the action's direction, THEN fire — the handler's
     // optimistic cache update unmounts the row instantly, so firing it
@@ -128,13 +146,16 @@ export function SwipeableRow({
   }
 
   return (
-    <Pressable
-      onHoverIn={() => {
-        rowHover.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
-      }}
-      onHoverOut={() => {
-        rowHover.value = withTiming(0, { duration: 150, easing: Easing.out(Easing.cubic) });
-      }}>
+    <View
+      {...mouseHover(
+        () => {
+          rowHover.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
+        },
+        () => {
+          rowHover.value = withTiming(0, { duration: 150, easing: Easing.out(Easing.cubic) });
+          setHoverSide(null);
+        }
+      )}>
       <Animated.View
         style={[styles.trail, { backgroundColor: rightAction.color, borderRadius: radius.card }, rightTrailStyle]}>
         <View style={styles.trailIconLeft}>
@@ -169,19 +190,23 @@ export function SwipeableRow({
       {/* Invisible hover/click zones on the row's edges. */}
       <Pressable
         style={[styles.edgeZone, styles.edgeLeft]}
-        onHoverIn={() => setHoverSide('left')}
-        onHoverOut={() => setHoverSide(null)}
+        {...mouseHover(
+          () => setHoverSide('left'),
+          () => setHoverSide(null)
+        )}
         onPress={() => commit('left')}
         accessibilityLabel="Complete or restore"
       />
       <Pressable
         style={[styles.edgeZone, styles.edgeRight]}
-        onHoverIn={() => setHoverSide('right')}
-        onHoverOut={() => setHoverSide(null)}
+        {...mouseHover(
+          () => setHoverSide('right'),
+          () => setHoverSide(null)
+        )}
         onPress={() => commit('right')}
         accessibilityLabel="Delete"
       />
-    </Pressable>
+    </View>
   );
 }
 

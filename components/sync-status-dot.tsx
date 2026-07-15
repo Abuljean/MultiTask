@@ -1,10 +1,12 @@
 // Sync-state indicator (docs/design/02): a small, calm dot — never blocks
-// content, never alarms. Offline is EXPECTED, not an error, so it's a quiet
-// outlined dot with a caption, not a warning banner. Static colors instead
-// of a pulse (reduced-motion-safe by construction).
-//   filled tertiary dot  = synced and idle
+// content, never alarms. Colors picked by the developer after the first
+// on-device sync test (2026-07-15): BLUE = live, RED = offline — but offline
+// stays an OUTLINED ring + caption (solid red would read as an error, and
+// offline is expected, not an error; red also belongs to overdue). Static
+// colors instead of a pulse (reduced-motion-safe by construction).
+//   filled blue dot      = synced and live
 //   filled accent dot    = actively syncing
-//   outlined dot + text  = offline (local-first keeps working)
+//   red ring + "offline" = offline (local-first keeps working)
 // Renders nothing in online mode (Expo Go), where sync doesn't exist.
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -31,8 +33,8 @@ export function SyncStatusDot() {
         style={[
           styles.dot,
           status.connected
-            ? { backgroundColor: status.busy ? colors.accent : colors.textTertiary }
-            : { borderWidth: 1.5, borderColor: colors.textSecondary },
+            ? { backgroundColor: status.busy ? colors.accent : colors.statusEventAccent }
+            : { borderWidth: 1.5, borderColor: colors.statusOverdueAccent },
         ]}
       />
     </View>

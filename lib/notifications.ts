@@ -67,6 +67,23 @@ function leadLabel(minutes: number): string {
   return `${minutes} minutes`;
 }
 
+/** Sign-out cleanup: cancel OUR scheduled notifications and clear the badge
+ *  so a signed-out device doesn't keep firing the previous user's reminders. */
+export async function clearTaskNotifications(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    await Promise.all(
+      scheduled
+        .filter((n) => n.content.data?.source === SOURCE_TAG)
+        .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+    );
+    await Notifications.setBadgeCountAsync(0);
+  } catch {
+    // Permission revoked or notifications unavailable — nothing to clear.
+  }
+}
+
 /** Cancel-and-reschedule all task notifications. Call whenever tasks or the
  *  relevant settings change; cheap enough to run debounced. */
 export async function syncTaskNotifications(

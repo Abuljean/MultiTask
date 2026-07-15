@@ -55,6 +55,17 @@ function leadLabel(minutes: number): string {
   return `${minutes} minutes`;
 }
 
+/** Sign-out cleanup: disarm every in-page timer and clear the tab badge —
+ *  otherwise up to 48 armed timers keep firing the previous user's
+ *  notifications in the open tab. */
+export async function clearTaskNotifications(): Promise<void> {
+  clearTimers();
+  try {
+    const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
+    nav.clearAppBadge?.()?.catch(() => {});
+  } catch {}
+}
+
 /** Re-plan all in-page notification timers. Same call sites as native. */
 export async function syncTaskNotifications(
   tasks: Task[],

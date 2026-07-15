@@ -20,6 +20,10 @@ export async function initSync(): Promise<boolean> {
   return false;
 }
 
+export async function teardownSync(): Promise<void> {}
+
+export function reconnectSync(): void {}
+
 /** Placeholder list builder for IN (...) clauses. */
 export function placeholders(count: number): string {
   return Array.from({ length: count }, () => '?').join(',');

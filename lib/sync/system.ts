@@ -8,11 +8,15 @@
 //     the local SQLite database (instant, offline-capable) and PowerSync
 //     moves data in the background.
 import Constants from 'expo-constants';
-import type { AbstractPowerSyncDatabase } from '@powersync/react-native';
+import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector } from '@powersync/react-native';
 
 export const isExpoGo = Constants.appOwnership === 'expo';
 
 let db: AbstractPowerSyncDatabase | null = null;
+// The created instance, possibly still pre-first-sync (db stays null until
+// the local data is trustworthy). Kept so reconnectSync can nudge it.
+let instance: AbstractPowerSyncDatabase | null = null;
+let connector: PowerSyncBackendConnector | null = null;
 let initPromise: Promise<boolean> | null = null;
 
 /** The local database when sync mode is active, else null. Hooks branch on
@@ -44,16 +48,59 @@ async function doInit(): Promise<boolean> {
       ]);
 
     const factory = new OPSqliteOpenFactory({ dbFilename: 'multitask.db' });
-    const instance = new PowerSyncDatabase({ schema: AppSchema, database: factory });
-    await instance.init();
+    const created = new PowerSyncDatabase({ schema: AppSchema, database: factory });
+    await created.init();
     // connect() keeps retrying in the background; offline at launch is fine —
     // local reads/writes work immediately, sync catches up later.
-    instance.connect(new SupabaseConnector());
-    db = instance;
+    connector = new SupabaseConnector();
+    instance = created;
+    created.connect(connector);
+    // Don't hand the hooks an EMPTY local database on a fresh install — that
+    // renders as "no tasks" (an empty state, not a loading state) until the
+    // first checkpoint lands. waitForFirstSync resolves instantly on any
+    // device that has synced before; until it resolves, hooks keep taking
+    // the online REST path.
+    await created.waitForFirstSync();
+    db = created;
     return true;
   } catch (error) {
     console.warn('PowerSync init failed; staying in online mode', error);
     return false;
+  }
+}
+
+/** Sign-out teardown: stop syncing and WIPE the local database. Without this
+ *  the next account on this device would read the previous user's rows, and
+ *  the previous user's queued offline writes would replay under the new JWT
+ *  (RLS rejects them → permanently dropped = silent data loss). */
+export async function teardownSync(): Promise<void> {
+  const current = instance;
+  instance = null;
+  connector = null;
+  db = null;
+  initPromise = null;
+  if (current) {
+    try {
+      await current.disconnectAndClear();
+      await current.close();
+    } catch (error) {
+      console.warn('Sync teardown failed', error);
+    }
+  }
+}
+
+/** Sign-in nudge: reconnect immediately instead of waiting out the retry
+ *  backoff PowerSync entered while we were signed out. If sync was torn
+ *  down (or never started), initSync boots it fresh. */
+export function reconnectSync(): void {
+  if (instance && connector) {
+    try {
+      instance.connect(connector);
+    } catch (error) {
+      console.warn('Sync reconnect failed', error);
+    }
+  } else {
+    void initSync();
   }
 }
 

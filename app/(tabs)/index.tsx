@@ -263,18 +263,20 @@ export default function TaskListScreen() {
           pageContent inside contentContainerStyle. */}
       <View style={[styles.titleRow, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
+        {/* The theme toggle is ALWAYS the outermost top-right control on
+            every tab (developer request) — other actions sit to its left. */}
         <View style={styles.titleActions}>
           <SyncStatusDot />
-          <ThemeToggleButton />
           {!isDesktop && (
             <Pressable
               onPress={() => (searchVisible ? hideSearch() : showSearch())}
               hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel={searchVisible ? 'Hide search' : 'Search tasks'}>
-              <IconSymbol name="magnifyingglass" size={20} color={searchVisible ? colors.accent : colors.textSecondary} />
+              <IconSymbol name="magnifyingglass" size={24} color={searchVisible ? colors.accent : colors.textSecondary} />
             </Pressable>
           )}
+          <ThemeToggleButton />
         </View>
       </View>
 

@@ -460,7 +460,7 @@ export default function CalendarScreen() {
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Import calendar events">
-            <IconSymbol name="tray.and.arrow.down" size={20} color={colors.accent} />
+            <IconSymbol name="tray.and.arrow.down" size={24} color={colors.accent} />
           </Pressable>
           <ThemeToggleButton />
         </View>

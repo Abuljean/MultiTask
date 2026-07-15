@@ -15,7 +15,7 @@ export function ThemeToggleButton() {
       hitSlop={10}
       accessibilityRole="button"
       accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-      <IconSymbol name={isDark ? 'sun.max.fill' : 'moon.fill'} size={20} color={colors.textSecondary} />
+      <IconSymbol name={isDark ? 'sun.max.fill' : 'moon.fill'} size={24} color={colors.textSecondary} />
     </Pressable>
   );
 }

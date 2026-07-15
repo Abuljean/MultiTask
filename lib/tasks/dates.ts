@@ -15,9 +15,12 @@
 //    .toISOString() would be a bug — it converts to UTC, silently shifting
 //    the deadline by the UTC offset. This is the #1 wall-clock mistake.
 
-const WALL_CLOCK = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/;
+const WALL_CLOCK = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?$/;
 
-/** "2026-07-10T23:59:00[.123]" → Date at 23:59 local time. */
+/** "2026-07-10T23:59:00[.123]" → Date at 23:59 local time.
+ *  Zone-suffixed strings ("...Z", "...+02:00") are REJECTED, not silently
+ *  stripped — a timestamptz routed here by mistake must fail loudly, or the
+ *  offset would be discarded and the deadline silently shifted. */
 export function parseWallClock(value: string): Date {
   const m = WALL_CLOCK.exec(value);
   if (!m) {

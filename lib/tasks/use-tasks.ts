@@ -31,6 +31,9 @@ import {
 } from './types';
 
 const TASKS_KEY = ['tasks'] as const;
+// Every task mutation carries this key so rollback/settle can count ONLY
+// task mutations in flight (recurring/event mutations don't interfere).
+const TASKS_MUTATION_KEY = ['task-mutations'] as const;
 
 export function useTasks() {
   return useQuery({ queryKey: TASKS_KEY, queryFn: fetchTasks });
@@ -67,8 +70,21 @@ async function applyOptimistic(
 }
 
 function rollback(queryClient: QueryClient, context?: { previous: Task[] | undefined }) {
-  if (context?.previous) {
-    queryClient.setQueryData(TASKS_KEY, context.previous);
+  if (!context?.previous) return;
+  // With another task mutation still in flight, this whole-array snapshot is
+  // stale — restoring it would wipe THAT mutation's optimistic state too.
+  // Skip; the settle-time refetch reconciles. (isMutating includes the
+  // mutation currently erroring, so >1 means "not alone".)
+  if (queryClient.isMutating({ mutationKey: TASKS_MUTATION_KEY }) > 1) return;
+  queryClient.setQueryData(TASKS_KEY, context.previous);
+}
+
+function settleInvalidate(queryClient: QueryClient) {
+  // Only the LAST task mutation to settle refetches — an earlier refetch
+  // would return server state without the still-pending mutations and
+  // overwrite their optimistic rows (a fresh quick-add could blink out).
+  if (queryClient.isMutating({ mutationKey: TASKS_MUTATION_KEY }) === 1) {
+    queryClient.invalidateQueries({ queryKey: TASKS_KEY });
   }
 }
 
@@ -86,6 +102,7 @@ async function currentUserUuid(): Promise<string> {
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async ({ input }: { input: NewTask; tempId: number }) => {
       const userUuid = await currentUserUuid();
       const db = syncDb();
@@ -161,7 +178,7 @@ export function useCreateTask() {
         old?.map((t) => (t.id === tempId ? createdTask : t))
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -169,6 +186,7 @@ export function useCreateTask() {
 export function useUpdateTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async ({ id, edits }: { id: number; edits: TaskEdits }) => {
       const db = syncDb();
       if (db) {
@@ -211,13 +229,14 @@ export function useUpdateTask() {
         )
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
 export function useSetTaskCompleted() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async ({ id, isCompleted }: { id: number; isCompleted: boolean }) => {
       const db = syncDb();
       if (db) {
@@ -230,7 +249,7 @@ export function useSetTaskCompleted() {
     onMutate: ({ id, isCompleted }) =>
       applyOptimistic(queryClient, (tasks) => tasks.map((t) => (t.id === id ? { ...t, isCompleted } : t))),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -239,6 +258,7 @@ export function useSetTaskCompleted() {
 export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async (id: number) => {
       const db = syncDb();
       if (db) {
@@ -256,7 +276,7 @@ export function useDeleteTask() {
         tasks.map((t) => (t.id === id ? { ...t, deletedAt: new Date() } : t))
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -264,6 +284,7 @@ export function useDeleteTask() {
 export function useRestoreTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async (id: number) => {
       const db = syncDb();
       if (db) {
@@ -276,7 +297,7 @@ export function useRestoreTask() {
     onMutate: (id) =>
       applyOptimistic(queryClient, (tasks) => tasks.map((t) => (t.id === id ? { ...t, deletedAt: null } : t))),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -285,6 +306,7 @@ export function useRestoreTask() {
 export function useBulkSoftDeleteTasks() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async (ids: number[]) => {
       const db = syncDb();
       if (db) {
@@ -305,7 +327,7 @@ export function useBulkSoftDeleteTasks() {
         tasks.map((t) => (ids.includes(t.id) ? { ...t, deletedAt: new Date() } : t))
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -313,6 +335,7 @@ export function useBulkSoftDeleteTasks() {
 export function useBulkRestoreTasks() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async (ids: number[]) => {
       const db = syncDb();
       if (db) {
@@ -330,7 +353,7 @@ export function useBulkRestoreTasks() {
         tasks.map((t) => (ids.includes(t.id) ? { ...t, deletedAt: null } : t))
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -338,6 +361,7 @@ export function useBulkRestoreTasks() {
 export function useBulkPermanentlyDeleteTasks() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async (ids: number[]) => {
       const db = syncDb();
       if (db) {
@@ -349,7 +373,7 @@ export function useBulkPermanentlyDeleteTasks() {
     },
     onMutate: (ids) => applyOptimistic(queryClient, (tasks) => tasks.filter((t) => !ids.includes(t.id))),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -357,6 +381,7 @@ export function useBulkPermanentlyDeleteTasks() {
 export function usePermanentlyDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
     mutationFn: async (id: number) => {
       const db = syncDb();
       if (db) {
@@ -368,6 +393,6 @@ export function usePermanentlyDeleteTask() {
     },
     onMutate: (id) => applyOptimistic(queryClient, (tasks) => tasks.filter((t) => t.id !== id)),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }

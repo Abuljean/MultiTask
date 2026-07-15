@@ -2,11 +2,12 @@
 // from CSV, listed on the calendar/Daily views, and deleted. Dual-mode
 // transport like the task hooks: local SQLite when PowerSync is active
 // (dev build), Supabase REST otherwise (Expo Go).
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
 import { newNumericId } from '@/lib/sync/ids';
 import { syncDb } from '@/lib/sync/system';
+import { localDateKey } from '@/lib/tasks/calendar';
 import { formatWallClock, parseWallClock } from '@/lib/tasks/dates';
 import type { ParsedEvent } from './csv';
 
@@ -76,6 +77,32 @@ function toEventFromSqlite(row: EventSqliteRow): CalendarEvent {
 }
 
 const EVENTS_KEY = ['events'] as const;
+const EVENTS_MUTATION_KEY = ['event-mutations'] as const;
+
+// Same optimistic discipline as the task hooks: snapshot before applying,
+// roll back on error (unless another event mutation is in flight — then the
+// snapshot is stale and the settle refetch reconciles), refetch last.
+async function applyOptimistic(
+  queryClient: QueryClient,
+  update: (events: CalendarEvent[]) => CalendarEvent[]
+): Promise<{ previous: CalendarEvent[] | undefined }> {
+  await queryClient.cancelQueries({ queryKey: EVENTS_KEY });
+  const previous = queryClient.getQueryData<CalendarEvent[]>(EVENTS_KEY);
+  queryClient.setQueryData<CalendarEvent[]>(EVENTS_KEY, (old) => update(old ?? []));
+  return { previous };
+}
+
+function rollback(queryClient: QueryClient, context?: { previous: CalendarEvent[] | undefined }) {
+  if (!context?.previous) return;
+  if (queryClient.isMutating({ mutationKey: EVENTS_MUTATION_KEY }) > 1) return;
+  queryClient.setQueryData(EVENTS_KEY, context.previous);
+}
+
+function settleInvalidate(queryClient: QueryClient) {
+  if (queryClient.isMutating({ mutationKey: EVENTS_MUTATION_KEY }) === 1) {
+    queryClient.invalidateQueries({ queryKey: EVENTS_KEY });
+  }
+}
 
 export function useEvents() {
   return useQuery({ queryKey: EVENTS_KEY, queryFn: fetchEvents });
@@ -95,6 +122,7 @@ async function fetchEvents(): Promise<CalendarEvent[]> {
 export function useImportEvents() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: EVENTS_MUTATION_KEY,
     mutationFn: async ({
       events,
       source,
@@ -154,13 +182,14 @@ export function useImportEvents() {
       }
       return rows.length;
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: EVENTS_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: EVENTS_MUTATION_KEY,
     mutationFn: async (id: number) => {
       const db = syncDb();
       if (db) {
@@ -170,17 +199,16 @@ export function useDeleteEvent() {
       const { error } = await supabase.from('event').delete().eq('id', id);
       if (error) throw error;
     },
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: EVENTS_KEY });
-      queryClient.setQueryData<CalendarEvent[]>(EVENTS_KEY, (old) => old?.filter((e) => e.id !== id));
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: EVENTS_KEY }),
+    onMutate: (id) => applyOptimistic(queryClient, (events) => events.filter((e) => e.id !== id)),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
 export function useDeleteAllEvents() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: EVENTS_MUTATION_KEY,
     mutationFn: async () => {
       const db = syncDb();
       if (db) {
@@ -190,20 +218,17 @@ export function useDeleteAllEvents() {
       const { error } = await supabase.from('event').delete().gte('id', 0);
       if (error) throw error;
     },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: EVENTS_KEY });
-      queryClient.setQueryData<CalendarEvent[]>(EVENTS_KEY, []);
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: EVENTS_KEY }),
+    onMutate: () => applyOptimistic(queryClient, () => []),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
 /** Events grouped by local calendar day (key = YYYY-MM-DD). */
 export function eventsByDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
-  const pad = (n: number) => String(n).padStart(2, '0');
   const byDay = new Map<string, CalendarEvent[]>();
   for (const event of events) {
-    const key = `${event.start.getFullYear()}-${pad(event.start.getMonth() + 1)}-${pad(event.start.getDate())}`;
+    const key = localDateKey(event.start);
     const existing = byDay.get(key);
     if (existing) existing.push(event);
     else byDay.set(key, [event]);

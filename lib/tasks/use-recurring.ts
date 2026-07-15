@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '@/lib/supabase';
 import { newNumericId, newUuid } from '@/lib/sync/ids';
 import { syncDb } from '@/lib/sync/system';
+import { localDateKey } from './calendar';
 
 export type RecurringTask = {
   id: number;
@@ -22,13 +23,12 @@ type RecurringTaskRow = {
   archived_at: string | null;
 };
 
-/** Local calendar day as YYYY-MM-DD — the key for "today". */
-export function localDateKey(date: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+// The canonical day-key implementation lives in calendar.ts; re-exported so
+// existing imports keep working.
+export { localDateKey };
 
 const RECURRING_KEY = ['recurring'] as const;
+const RECURRING_MUTATION_KEY = ['recurring-mutations'] as const;
 
 export function useRecurringTasks() {
   return useQuery({ queryKey: RECURRING_KEY, queryFn: fetchRecurring });
@@ -87,8 +87,16 @@ async function applyOptimistic(
 }
 
 function rollback(queryClient: QueryClient, context?: { previous: RecurringTask[] | undefined }) {
-  if (context?.previous) {
-    queryClient.setQueryData(RECURRING_KEY, context.previous);
+  if (!context?.previous) return;
+  // Same concurrent-mutation guard as use-tasks: a whole-array snapshot is
+  // stale while other recurring mutations are in flight.
+  if (queryClient.isMutating({ mutationKey: RECURRING_MUTATION_KEY }) > 1) return;
+  queryClient.setQueryData(RECURRING_KEY, context.previous);
+}
+
+function settleInvalidate(queryClient: QueryClient) {
+  if (queryClient.isMutating({ mutationKey: RECURRING_MUTATION_KEY }) === 1) {
+    queryClient.invalidateQueries({ queryKey: RECURRING_KEY });
   }
 }
 
@@ -102,34 +110,48 @@ async function currentUserUuid(): Promise<string> {
 export function useAddRecurringTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ title, sortOrder }: { title: string; sortOrder: number; tempId: number }) => {
+    mutationKey: RECURRING_MUTATION_KEY,
+    mutationFn: async ({ title, sortOrder }: { title: string; sortOrder: number; tempId: number }): Promise<RecurringTask> => {
       const userUuid = await currentUserUuid();
       const db = syncDb();
       if (db) {
+        const id = newNumericId();
         await db.execute(
           'INSERT INTO recurring_task (id, user_uuid, title, sort_order, created_at, archived_at) VALUES (?,?,?,?,?,NULL)',
-          [String(newNumericId()), userUuid, title, sortOrder, new Date().toISOString()]
+          [String(id), userUuid, title, sortOrder, new Date().toISOString()]
         );
-        return;
+        return { id, title, sortOrder, doneToday: false };
       }
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('recurring_task')
-        .insert({ user_uuid: userUuid, title, sort_order: sortOrder });
+        .insert({ user_uuid: userUuid, title, sort_order: sortOrder })
+        .select('id, title, sort_order')
+        .single();
       if (error) throw error;
+      const row = data as { id: number; title: string; sort_order: number };
+      return { id: row.id, title: row.title, sortOrder: row.sort_order, doneToday: false };
     },
     onMutate: ({ title, sortOrder, tempId }) =>
       applyOptimistic(queryClient, (tasks) => [
         ...tasks,
         { id: tempId, title, sortOrder, doneToday: false },
       ]),
+    // Swap the temp row for the real one immediately — until the refetch
+    // lands, toggling/archiving the new row would otherwise target the temp
+    // id, and a Supabase update matching zero rows "succeeds" silently.
+    onSuccess: (created, { tempId }) =>
+      queryClient.setQueryData<RecurringTask[]>(RECURRING_KEY, (old) =>
+        old?.map((t) => (t.id === tempId ? created : t))
+      ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: RECURRING_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
 export function useSetRecurringDone() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: RECURRING_MUTATION_KEY,
     mutationFn: async ({ id, done }: { id: number; done: boolean }) => {
       const today = localDateKey();
       const db = syncDb();
@@ -150,9 +172,15 @@ export function useSetRecurringDone() {
       }
       if (done) {
         const userUuid = await currentUserUuid();
+        // upsert + ignoreDuplicates: another device may have completed the
+        // same task today — that's agreement, not an error. A plain insert
+        // would 23505 and roll the checkmark back off a task that IS done.
         const { error } = await supabase
           .from('recurring_completion')
-          .insert({ recurring_task_id: id, user_uuid: userUuid, done_on: today });
+          .upsert(
+            { recurring_task_id: id, user_uuid: userUuid, done_on: today },
+            { onConflict: 'recurring_task_id,done_on', ignoreDuplicates: true }
+          );
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -168,7 +196,7 @@ export function useSetRecurringDone() {
         tasks.map((t) => (t.id === id ? { ...t, doneToday: done } : t))
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: RECURRING_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -176,6 +204,7 @@ export function useSetRecurringDone() {
 export function useArchiveRecurringTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: RECURRING_MUTATION_KEY,
     mutationFn: async (id: number) => {
       const db = syncDb();
       if (db) {
@@ -193,7 +222,7 @@ export function useArchiveRecurringTask() {
     },
     onMutate: (id) => applyOptimistic(queryClient, (tasks) => tasks.filter((t) => t.id !== id)),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: RECURRING_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }
 
@@ -201,6 +230,7 @@ export function useArchiveRecurringTask() {
 export function useUnarchiveRecurringTask() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: RECURRING_MUTATION_KEY,
     mutationFn: async (task: RecurringTask) => {
       const db = syncDb();
       if (db) {
@@ -215,6 +245,6 @@ export function useUnarchiveRecurringTask() {
         [...tasks, task].sort((a, b) => a.sortOrder - b.sortOrder)
       ),
     onError: (_error, _vars, context) => rollback(queryClient, context),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: RECURRING_KEY }),
+    onSettled: () => settleInvalidate(queryClient),
   });
 }

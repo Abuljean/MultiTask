@@ -5,15 +5,26 @@
 
 import type { Task } from './types';
 
-/** Local calendar day as YYYY-MM-DD — the canonical day key. */
-export function localDateKey(date: Date): string {
+/** Local calendar day as YYYY-MM-DD — the canonical day key. The single
+ *  implementation: Daily, the calendar, and event grouping all share it, so
+ *  "today" can never diverge between views. */
+export function localDateKey(date: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/** Inverse of localDateKey. The key reaches us as a ROUTE PARAM (app/day/
+ *  [date]), so garbage is possible — a malformed key falls back to today
+ *  instead of producing Invalid Date/NaN downstream. */
 export function parseDateKey(key: string): Date {
-  const [year, month, day] = key.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(key);
+  if (match) {
+    const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    if (month >= 1 && month <= 12 && day >= 1 && day <= new Date(year, month, 0).getDate()) {
+      return new Date(year, month - 1, day);
+    }
+  }
+  return new Date();
 }
 
 /**

@@ -31,9 +31,13 @@ function addDays(d: Date, days: number): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
 }
 
-/** Sort: earlier due date first; ties broken by priority (1st before none). */
+/** Sort: earlier due date first; ties broken by priority (1st before none).
+ *  Dateless tasks sort LAST (MAX_SAFE_INTEGER, matching filter.ts) — with 0
+ *  they'd jump to the TOP of the Completed/Deleted sections. */
 function byDueThenPriority(a: Task, b: Task): number {
-  const dueDiff = (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0);
+  const dueDiff =
+    (a.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+    (b.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER);
   if (dueDiff !== 0) return dueDiff;
   return (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER);
 }

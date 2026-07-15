@@ -10,7 +10,10 @@ set user_uuid = u.id
 from public.app_users a
 join auth.users u on lower(u.email) = lower(a.email)
 where t.user_id = a.id
-  and t.user_uuid is null;
+  and t.user_uuid is null
+  -- Only link CONFIRMED signups: with confirm-email off, anyone could sign
+  -- up as a legacy user's address and inherit their tasks (2026-07-15 audit).
+  and u.email_confirmed_at is not null;
 
 -- Returns the number of still-unlinked tasks afterwards (0 = everyone's
 -- tasks are linked; nonzero = those users haven't signed up natively yet):

@@ -27,6 +27,20 @@ function pkValue(table: string, id: string): number | string {
   return table === 'recurring_completion' ? id : Number(id);
 }
 
+// SQLSTATE classes that will NEVER succeed on retry:
+//   22 data exception (e.g. 22001 value too long)
+//   23 integrity violation (unique/FK/check)
+//   42 access rule violation (RLS denial 42501, undefined column, 428C9)
+// Anything else (no code = network, 5xx, PostgREST transport) is transient.
+const PERMANENT_SQLSTATE = /^(22|23|42)/;
+
+// Ops dropped as permanently rejected — food for the future sync-state
+// indicator (docs/design/02). Module-level so UI can poll it cheaply.
+let droppedOpCount = 0;
+export function getDroppedOpCount(): number {
+  return droppedOpCount;
+}
+
 export class SupabaseConnector implements PowerSyncBackendConnector {
   async fetchCredentials() {
     const { data } = await supabase.auth.getSession();
@@ -44,35 +58,40 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
     const transaction = await database.getNextCrudTransaction();
     if (!transaction) return;
 
-    try {
-      for (const op of transaction.crud) {
-        const table = supabase.from(op.table);
-        const pk = PK_COLUMN[op.table] ?? 'id';
-        const id = pkValue(op.table, op.id);
+    // Per-op error handling: a permanently rejected op is dropped ALONE —
+    // the rest of the transaction still applies (previously one poisoned op
+    // discarded every op after it, e.g. one bad CSV row killed the whole
+    // import). Transient errors rethrow so PowerSync retries the whole
+    // transaction; replaying already-applied ops is safe (a duplicate insert
+    // fails 23505 → dropped as permanent, updates/deletes are idempotent).
+    for (const op of transaction.crud) {
+      const table = supabase.from(op.table);
+      const pk = PK_COLUMN[op.table] ?? 'id';
+      const id = pkValue(op.table, op.id);
 
+      try {
         if (op.op === UpdateType.PUT) {
           const { error } = await table.upsert({ ...op.opData, [pk]: id });
           if (error) throw error;
         } else if (op.op === UpdateType.PATCH) {
-          const { error } = await table.update(op.opData ?? {}).eq(pk, id);
+          // An empty PATCH would 4xx forever and jam the queue — skip it.
+          if (!op.opData || Object.keys(op.opData).length === 0) continue;
+          const { error } = await table.update(op.opData).eq(pk, id);
           if (error) throw error;
         } else if (op.op === UpdateType.DELETE) {
           const { error } = await table.delete().eq(pk, id);
           if (error) throw error;
         }
+      } catch (error: unknown) {
+        const code = (error as { code?: string })?.code ?? '';
+        if (PERMANENT_SQLSTATE.test(code)) {
+          droppedOpCount += 1;
+          console.warn('Dropping permanently rejected sync op', op.table, op.op, code);
+          continue;
+        }
+        throw error;
       }
-      await transaction.complete();
-    } catch (error: unknown) {
-      // Permanent rejections (RLS denial, constraint violation) must NOT
-      // retry forever — complete the transaction to drop the poisoned op.
-      // Transient errors (offline, timeouts) rethrow so PowerSync retries.
-      const code = (error as { code?: string })?.code ?? '';
-      if (/^(23|42)/.test(code)) {
-        console.warn('Dropping permanently rejected sync op', code);
-        await transaction.complete();
-        return;
-      }
-      throw error;
     }
+    await transaction.complete();
   }
 }

@@ -29,6 +29,7 @@ import { CollapsibleReveal } from '@/components/collapsible-reveal';
 import { InlineDatePicker } from '@/components/inline-date-picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { confirmDialog } from '@/lib/confirm';
+import { TASK_DESCRIPTION_MAX, TASK_TITLE_MAX } from '@/lib/limits';
 import { endOfToday } from '@/lib/tasks/dates';
 import { useTasks } from '@/lib/tasks/use-tasks';
 import { priorityTiers } from '@/lib/theme/tokens';
@@ -450,6 +451,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             placeholderTextColor={colors.textTertiary}
             value={title}
             onChangeText={setTitle}
+            maxLength={TASK_TITLE_MAX}
             autoFocus={autoFocusTitle}
             // Done only dismisses the keyboard; submitting is the button's job.
             returnKeyType="done"
@@ -625,6 +627,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                 placeholderTextColor={colors.textTertiary}
                 value={description}
                 onChangeText={setDescription}
+                maxLength={TASK_DESCRIPTION_MAX}
                 multiline
               />
             </View>

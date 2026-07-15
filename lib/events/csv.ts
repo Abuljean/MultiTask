@@ -12,6 +12,8 @@
 // Date formats: YYYY-MM-DD or M/D/YYYY (month-first). Time formats: 24h
 // HH:mm or h:mm AM/PM. A row with no time becomes an all-day event.
 
+import { EVENT_LOCATION_MAX, EVENT_NOTES_MAX, EVENT_TITLE_MAX } from '@/lib/limits';
+
 export type ParsedEvent = {
   title: string;
   start: Date;
@@ -118,39 +120,60 @@ const COLUMN_ALIASES: Record<string, string[]> = {
 };
 
 function mapColumns(headers: string[]): Record<string, number> {
+  // Alias priority wins over header order: a file with both "subject" and
+  // "title" columns must map the event title to "title" (the stronger alias),
+  // not whichever column happens to come first.
+  const normalized = headers.map(normalizeHeader);
   const mapping: Record<string, number> = {};
-  headers.forEach((header, index) => {
-    const normalized = normalizeHeader(header);
-    for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
-      if (mapping[key] === undefined && aliases.includes(normalized)) {
+  for (const [key, aliases] of Object.entries(COLUMN_ALIASES)) {
+    for (const alias of aliases) {
+      const index = normalized.indexOf(alias);
+      if (index !== -1) {
         mapping[key] = index;
+        break;
       }
     }
-  });
+  }
   return mapping;
 }
 
 function parseDatePart(value: string): { year: number; month: number; day: number } | null {
+  let year: number, month: number, day: number;
   const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
-  if (iso) return { year: Number(iso[1]), month: Number(iso[2]), day: Number(iso[3]) };
-  // Month-first (US-style). Documented in the import sheet.
-  const slash = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(value);
-  if (slash) return { year: Number(slash[3]), month: Number(slash[1]), day: Number(slash[2]) };
-  return null;
+  const slash = iso ? null : /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(value);
+  if (iso) {
+    [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  } else if (slash) {
+    // Month-first (US-style). Documented in the import sheet.
+    [year, month, day] = [Number(slash[3]), Number(slash[1]), Number(slash[2])];
+  } else {
+    return null;
+  }
+  // Range-check instead of letting the Date constructor roll over: AI- and
+  // hand-made CSVs produce "2026-02-31", which must be a row error, not
+  // a silent March 3rd.
+  if (month < 1 || month > 12) return null;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if (day < 1 || day > daysInMonth) return null;
+  return { year, month, day };
 }
 
 function parseTimePart(value: string): { hour: number; minute: number } | null {
   const ampm = /^(\d{1,2})(?::(\d{2}))?\s*([AaPp])\.?[Mm]?\.?$/.exec(value);
   if (ampm) {
-    let hour = Number(ampm[1]) % 12;
+    const rawHour = Number(ampm[1]);
+    const minute = Number(ampm[2] ?? '0');
+    if (rawHour < 1 || rawHour > 12 || minute > 59) return null;
+    let hour = rawHour % 12;
     if (/[Pp]/.test(ampm[3])) hour += 12;
-    return { hour, minute: Number(ampm[2] ?? '0') };
+    return { hour, minute };
   }
   const h24 = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value);
   if (h24) {
     const hour = Number(h24[1]);
-    if (hour > 23) return null;
-    return { hour, minute: Number(h24[2]) };
+    const minute = Number(h24[2]);
+    if (hour > 23 || minute > 59) return null;
+    return { hour, minute };
   }
   return null;
 }
@@ -215,13 +238,15 @@ export function csvToEvents(text: string): CsvImportResult {
       }
     }
 
+    // Cap text fields at the server varchar limits — an over-long value
+    // would insert locally, then poison the sync upload with 22001.
     events.push({
-      title,
+      title: title.slice(0, EVENT_TITLE_MAX),
       start,
       end,
       allDay,
-      location: cell('location') || null,
-      notes: cell('notes') || null,
+      location: cell('location').slice(0, EVENT_LOCATION_MAX) || null,
+      notes: cell('notes').slice(0, EVENT_NOTES_MAX) || null,
       color: normalizeColor(cell('color')),
     });
   }

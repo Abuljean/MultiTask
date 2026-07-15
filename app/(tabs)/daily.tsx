@@ -5,7 +5,7 @@
 // included — they're today's reality) reusing the swipeable cards.
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -26,6 +26,7 @@ import { useUndoToast } from '@/components/undo-toast';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { animateListChanges } from '@/lib/animate-layout';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
+import { RECURRING_TITLE_MAX } from '@/lib/limits';
 import { useEvents } from '@/lib/events/use-events';
 import { localDateKey } from '@/lib/tasks/calendar';
 import {
@@ -120,7 +121,14 @@ export default function DailyScreen() {
     });
   }
 
+  // Guards the Done-key + blur double-fire: pressing Done submits AND blurs
+  // the input before the cleared state re-renders, so both handlers read the
+  // same stale title — without the ref the task would be added twice.
+  const submittedNew = useRef(false);
+
   function submitNew() {
+    if (submittedNew.current) return;
+    submittedNew.current = true;
     const trimmed = newTitle.trim();
     setAdding(false);
     setNewTitle('');
@@ -245,6 +253,7 @@ export default function DailyScreen() {
                 placeholderTextColor={colors.textTertiary}
                 value={newTitle}
                 onChangeText={setNewTitle}
+                maxLength={RECURRING_TITLE_MAX}
                 autoFocus
                 returnKeyType="done"
                 onSubmitEditing={submitNew}
@@ -252,7 +261,10 @@ export default function DailyScreen() {
               />
             ) : (
               <Pressable
-                onPress={() => setAdding(true)}
+                onPress={() => {
+                  submittedNew.current = false;
+                  setAdding(true);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel="New daily task"
                 style={[

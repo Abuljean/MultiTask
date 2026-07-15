@@ -10,8 +10,17 @@
 //
 // recurring_completion uses a uuid PK, so clients mint uuid v4 strings.
 
+let lastId = 0;
+
 export function newNumericId(): number {
-  return Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  // Monotonic guard: a tight loop (bulk CSV import) can mint several ids in
+  // the same millisecond, where random suffixes alone collide surprisingly
+  // often (birthday math: ~1% per 5 ids sharing a ms). Never repeat or go
+  // backwards on this device; cross-device uniqueness still rests on the
+  // ms + suffix as documented above.
+  const candidate = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  lastId = candidate > lastId ? candidate : lastId + 1;
+  return lastId;
 }
 
 export function newUuid(): string {

@@ -1,0 +1,12 @@
+# CodeRabbit CLI/app configuration.
+# Scope reviews to the shipping app code: the old Vaadin web app under
+# reference/ is read-only context (data model + visual DNA), and docs/ is
+# prose — neither is worth review quota, and including them made whole-repo
+# reviews choke.
+reviews:
+  path_filters:
+    - "!reference/**"
+    - "!docs/**"
+    - "!assets/**"
+    - "!package-lock.json"
+    - "!**/*.md"

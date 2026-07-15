@@ -61,19 +61,28 @@ export function AppThemeProvider({ children }: PropsWithChildren) {
   const value = useMemo<ThemePreferenceValue>(
     () => ({
       resolved,
+      // Both setters are optimistic writes: apply to state first, and if the
+      // persistence write fails, roll the state back (app-wide mutation rule —
+      // a silent failure would show the new look now, then lose it on relaunch).
       toggle: () => {
+        const previous = preference;
         const next = resolved === 'dark' ? 'light' : 'dark';
         setPreference(next);
-        AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {});
+        AsyncStorage.setItem(STORAGE_KEY, next).catch(() => {
+          setPreference((current) => (current === next ? previous : current));
+        });
       },
       packId,
       setPackId: (id: string) => {
+        const previous = packId;
         const valid = getPack(id).id;
         setPackIdState(valid);
-        AsyncStorage.setItem(PACK_STORAGE_KEY, valid).catch(() => {});
+        AsyncStorage.setItem(PACK_STORAGE_KEY, valid).catch(() => {
+          setPackIdState((current) => (current === valid ? previous : current));
+        });
       },
     }),
-    [resolved, packId]
+    [resolved, preference, packId]
   );
 
   return <ThemePreferenceContext.Provider value={value}>{children}</ThemePreferenceContext.Provider>;

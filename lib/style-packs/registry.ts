@@ -31,5 +31,11 @@ export const STYLE_PACKS: StylePack[] = [
 ];
 
 export function getPack(id: string | null | undefined): StylePack {
-  return STYLE_PACKS.find((p) => p.id === id) ?? STYLE_PACKS[0];
+  // Unknown/removed ids fall back to the DEFAULT pack by id, not by array
+  // position — inserting a new pack above it must never change the fallback.
+  return (
+    STYLE_PACKS.find((p) => p.id === id) ??
+    STYLE_PACKS.find((p) => p.id === DEFAULT_PACK_ID) ??
+    STYLE_PACKS[0]
+  );
 }

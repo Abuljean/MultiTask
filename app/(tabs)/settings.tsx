@@ -315,7 +315,7 @@ export default function SettingsScreen() {
           accessibilityRole="button"
           style={{ paddingVertical: space.s2 }}>
           <Text style={[type.body, { color: colors.accent }]}>Styles</Text>
-          <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400', marginTop: 2 }]}>
+          <Text style={[type.caption, { color: colors.textTertiary, marginTop: space.s1 }]}>
             New looks are coming soon.
           </Text>
         </Pressable>

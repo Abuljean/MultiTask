@@ -15,13 +15,20 @@ export function confirmDialog(options: {
     return Promise.resolve(g.confirm ? g.confirm(text) : true);
   }
   return new Promise((resolve) => {
-    Alert.alert(options.title, options.message, [
-      { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-      {
-        text: options.confirmLabel,
-        style: options.destructive ? 'destructive' : 'default',
-        onPress: () => resolve(true),
-      },
-    ]);
+    Alert.alert(
+      options.title,
+      options.message,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        {
+          text: options.confirmLabel,
+          style: options.destructive ? 'destructive' : 'default',
+          onPress: () => resolve(true),
+        },
+      ],
+      // Android: dismissing outside the alert must still settle the promise —
+      // callers await it, and an unresolved promise wedges their flow.
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
   });
 }

@@ -48,3 +48,16 @@ export function pillColors(userColor: string, isDark: boolean): PillPalette {
     border: hslCss(text, 0.25),
   };
 }
+
+/** Readable TEXT variant of any user-supplied color — same hue/lightness
+ *  clamp as pill text. Event cards use this for their time text: a CSV can
+ *  legally say color=#fef08a (pale yellow), which is fine as a border but
+ *  illegible as text on a light surface. */
+export function readableTextColor(userColor: string, isDark: boolean): string {
+  const hsl = hexToHsl(userColor) ?? { h: 0, s: 0, l: 0.5 };
+  return hslCss({
+    h: hsl.h,
+    s: Math.min(1, Math.max(hsl.s, 0.45)),
+    l: isDark ? Math.max(hsl.l, 0.7) : Math.min(hsl.l, 0.32),
+  });
+}

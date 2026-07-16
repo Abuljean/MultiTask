@@ -78,7 +78,10 @@ function Toast({ content, onDismiss }: { content: ToastContent; onDismiss: () =>
       style={[
         styles.toast,
         {
-          bottom: insets.bottom + 64, // clears the tab bar
+          // Clears the tab bar AND the FAB (doc 02: toast sits ABOVE the
+          // FAB). The FAB tops out at insets.bottom+24+56=80; below 96 the
+          // toast covered its upper half for 5s after every swipe.
+          bottom: insets.bottom + 96,
           backgroundColor: colors.surfaceElevated,
           borderColor: colors.borderSubtle,
           borderRadius: radius.card,

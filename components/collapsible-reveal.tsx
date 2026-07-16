@@ -26,6 +26,11 @@ export function CollapsibleReveal({ open, children }: PropsWithChildren<{ open: 
     <Animated.View style={style}>
       <View
         style={styles.inner}
+        // Collapsed content stays MOUNTED (the height just animates to 0),
+        // so without these, screen-reader focus could land on invisible
+        // chips/inputs inside a closed section.
+        aria-hidden={!open}
+        importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
         onLayout={(e) => {
           contentHeight.value = e.nativeEvent.layout.height;
         }}>

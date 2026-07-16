@@ -229,6 +229,7 @@ export default function SettingsScreen() {
               <Pressable
                 key={hours}
                 onPress={() => setThreshold(hours)}
+                hitSlop={2}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 style={{
@@ -282,6 +283,7 @@ export default function SettingsScreen() {
                   });
                   if (error) toast.show({ message: 'Couldn’t save the setting.' });
                 }}
+                hitSlop={2}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 style={{

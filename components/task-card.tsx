@@ -34,12 +34,25 @@ export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPres
   const surfaces = statusSurfaces(theme);
   const { background, accentBar } = surfaces[status];
 
+  // The label must carry EVERYTHING rule 2 promises visually — an
+  // accessibilityLabel on the container replaces the child text for screen
+  // readers, so without this VoiceOver would only ever hear the title.
+  const statusPhrase =
+    status === 'overdue' ? 'overdue' : status === 'urgent' ? 'urgent' : status === 'completed' ? 'completed' : null;
+  const accessibilityLabel = [
+    task.title,
+    task.deletedAt ? 'in trash' : statusPhrase,
+    task.dueDate ? `due ${formatDueDate(task.dueDate)}` : 'no due date',
+  ]
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <Pressable
       onPress={onPress && (() => onPress(task))}
       onLongPress={onLongPress && (() => onLongPress(task))}
       accessibilityRole="button"
-      accessibilityLabel={`Task: ${task.title}`}
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: task.isCompleted }}
       // Swipe gestures need a non-gesture equivalent for assistive tech
       // (docs/design/04 accessibility rules).

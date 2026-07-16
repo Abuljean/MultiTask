@@ -19,7 +19,7 @@ import { useTheme } from '@/lib/theme/use-theme';
 // keep it). First option = the theme's standard event blue (stored as null
 // so it adapts to dark mode).
 const COLOR_CHOICES = ['red', 'orange', 'yellow', 'green', 'teal', 'indigo', 'purple', 'pink'].map(
-  (name) => NAMED_EVENT_COLORS[name]
+  (name) => ({ name, hex: NAMED_EVENT_COLORS[name] })
 );
 
 export default function ImportEventsScreen() {
@@ -138,6 +138,8 @@ export default function ImportEventsScreen() {
         <View style={[styles.swatchRow, { gap: space.s2 }]}>
           <Pressable
             onPress={() => setDefaultColor(null)}
+            // 30pt swatch + 7 slop = 44pt touch target.
+            hitSlop={7}
             accessibilityRole="button"
             accessibilityLabel="Default blue"
             accessibilityState={{ selected: defaultColor === null }}
@@ -150,12 +152,15 @@ export default function ImportEventsScreen() {
               },
             ]}
           />
-          {COLOR_CHOICES.map((hex) => (
+          {COLOR_CHOICES.map(({ name, hex }) => (
             <Pressable
               key={hex}
               onPress={() => setDefaultColor(hex)}
+              hitSlop={7}
               accessibilityRole="button"
-              accessibilityLabel={`Color ${hex}`}
+              // Color NAME, not hex — VoiceOver reading "#f97316" aloud
+              // helps nobody.
+              accessibilityLabel={name}
               accessibilityState={{ selected: defaultColor === hex }}
               style={[
                 styles.swatch,

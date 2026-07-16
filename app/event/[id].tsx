@@ -3,7 +3,7 @@
 // design: events are imported and deleted, never edited. Single-event
 // delete lives here (confirmed — no undo path exists for events).
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -12,13 +12,14 @@ import { eventTimeLabel } from '@/components/event-card';
 import { useUndoToast } from '@/components/undo-toast';
 import { confirmDialog } from '@/lib/confirm';
 import { useDeleteEvent, useEvents } from '@/lib/events/use-events';
+import { readableTextColor } from '@/lib/theme/pill-colors';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function EventDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Number(id);
-  const { colors, space, radius, type, monoFont } = useTheme();
+  const { colors, space, radius, type, monoFont, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const { data: events } = useEvents();
@@ -36,10 +37,21 @@ export default function EventDetailScreen() {
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sheetOffset.value }] }));
   const backdropStyle = useAnimatedStyle(() => ({ opacity: backdropOpacity.value * 0.35 }));
 
+  // Deleting optimistically WHILE the sheet is open races two navigations:
+  // the cache-miss effect below fires router.back() the instant the event
+  // leaves the cache (killing the slide-down), and the close animation's own
+  // callback would then pop a SECOND screen. Instead the delete runs AFTER
+  // the sheet has closed — stashed here, executed in goBack.
+  const afterClose = useRef<(() => void) | null>(null);
+  const closing = useRef(false);
+
   function goBack() {
     router.back();
+    afterClose.current?.();
+    afterClose.current = null;
   }
   function close() {
+    closing.current = true;
     backdropOpacity.value = withTiming(0, { duration: 220 });
     sheetOffset.value = withTiming(
       screenHeight,
@@ -50,9 +62,10 @@ export default function EventDetailScreen() {
     );
   }
 
-  // Cache miss (event deleted elsewhere): nothing to show, leave quietly.
+  // Cache miss (event deleted elsewhere): nothing to show, leave quietly —
+  // unless we're already animating out, which ends in goBack anyway.
   useEffect(() => {
-    if (events && !event) router.back();
+    if (events && !event && !closing.current) router.back();
   }, [events, event, router]);
 
   if (!event) return null;
@@ -65,10 +78,12 @@ export default function EventDetailScreen() {
       destructive: true,
     });
     if (!confirmed) return;
-    deleteEvent.mutate(eventId, {
-      onError: () => toast.show({ message: 'Couldn’t delete the event — check your connection.' }),
-    });
-    toast.show({ message: 'Event deleted.' });
+    afterClose.current = () => {
+      deleteEvent.mutate(eventId, {
+        onError: () => toast.show({ message: 'Couldn’t delete the event — check your connection.' }),
+      });
+      toast.show({ message: 'Event deleted.' });
+    };
     close();
   }
 
@@ -79,6 +94,9 @@ export default function EventDetailScreen() {
     year: 'numeric',
   });
   const accent = event.color ?? colors.statusEventAccent;
+  // Raw color for the border; lightness-clamped variant for TEXT (see
+  // event-card.tsx — pale CSV colors are illegible as text).
+  const timeColor = event.color ? readableTextColor(event.color, isDark) : colors.statusEventAccent;
 
   return (
     <View style={styles.container}>
@@ -105,7 +123,7 @@ export default function EventDetailScreen() {
 
         <View style={{ gap: space.s1 }}>
           <Text style={[type.body, { color: colors.textSecondary }]}>{dateLabel}</Text>
-          <Text style={{ fontFamily: monoFont, fontSize: 13, lineHeight: 18, color: accent }}>
+          <Text style={{ fontFamily: monoFont, fontSize: 13, lineHeight: 18, color: timeColor }}>
             {eventTimeLabel(event)}
           </Text>
         </View>

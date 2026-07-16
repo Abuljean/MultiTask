@@ -63,6 +63,46 @@ const SWATCHES = [
   '#2dd4bf', '#60a5fa', '#818cf8', '#c084fc', '#f472b6', '#e5e7eb',
 ];
 
+// Module scope on purpose: declared inside the sheet this would be a NEW
+// component type on every render, so React unmounted and remounted every
+// chip on each title keystroke (lost press feedback, re-measured layout).
+function SelectChip({
+  label,
+  selected,
+  onPress,
+  color,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  color?: string;
+}) {
+  const { colors, space, radius, type } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      // 40pt chip + slop = 44pt touch target.
+      hitSlop={2}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      style={{
+        borderWidth: 1.5,
+        borderColor: selected ? colors.accent : colors.borderSubtle,
+        backgroundColor: selected ? colors.accentMuted : 'transparent',
+        borderRadius: radius.button,
+        paddingHorizontal: space.s3,
+        minHeight: 40,
+        justifyContent: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.s2,
+      }}>
+      {color && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />}
+      <Text style={[type.body, { color: selected ? colors.accent : colors.textPrimary }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 /** Inline creator for a new category/subject: name + swatch, Done to create. */
 function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCreate: (option: NamedColor) => void }) {
   const { colors, space, radius } = useTheme();
@@ -100,6 +140,8 @@ function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCr
           <Pressable
             key={swatch}
             onPress={() => setColor(swatch)}
+            // 28pt swatch + 8 slop = 44pt touch target (HIG minimum).
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={`Color ${swatch}`}
             accessibilityState={{ selected: color === swatch }}
@@ -358,40 +400,6 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     paddingVertical: space.s2,
   } as const;
 
-  function SelectChip({
-    label,
-    selected,
-    onPress,
-    color,
-  }: {
-    label: string;
-    selected: boolean;
-    onPress: () => void;
-    color?: string;
-  }) {
-    return (
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        accessibilityState={{ selected }}
-        style={{
-          borderWidth: 1.5,
-          borderColor: selected ? colors.accent : colors.borderSubtle,
-          backgroundColor: selected ? colors.accentMuted : 'transparent',
-          borderRadius: radius.button,
-          paddingHorizontal: space.s3,
-          minHeight: 40,
-          justifyContent: 'center',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.s2,
-        }}>
-        {color && <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: color }} />}
-        <Text style={[type.body, { color: selected ? colors.accent : colors.textPrimary }]}>{label}</Text>
-      </Pressable>
-    );
-  }
-
   const maxBodyHeight = Math.max(200, screenHeight - keyboardHeight - insets.top - 220);
 
   return (
@@ -399,7 +407,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       {/* Tap outside (or drag the sheet down) to cancel; unsaved changes
           get a discard confirmation. */}
-      <Pressable style={styles.backdropTouch} onPress={maybeClose} accessibilityLabel="Close" />
+      <Pressable style={styles.backdropTouch} onPress={maybeClose} accessibilityRole="button" accessibilityLabel="Close" />
       <GestureDetector gesture={sheetPan}>
       <Animated.View
         style={[
@@ -421,10 +429,19 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             paddingBottom: space.s4,
           },
         ]}>
+        {/* Grabber: role=button (not "adjustable" — that promises increment/
+            decrement actions we don't implement, and VoiceOver announces a
+            broken control). Tap-to-close gives assistive tech a real
+            equivalent of the drag-down gesture. */}
         {!isWeb && (
-          <View style={styles.grabberZone} accessibilityLabel="Drag down to close" accessibilityRole="adjustable">
+          <Pressable
+            style={styles.grabberZone}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            accessibilityHint="Closes the form. Drag down to dismiss."
+            onPress={maybeClose}>
             <View style={[styles.grabber, { backgroundColor: colors.borderSubtle }]} />
-          </View>
+          </Pressable>
         )}
 
         <GestureDetector gesture={bodyScrollGesture}>

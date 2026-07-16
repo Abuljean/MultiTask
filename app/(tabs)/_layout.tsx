@@ -4,13 +4,12 @@ import { Platform, useWindowDimensions } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useNotificationNavigation } from '@/hooks/use-notification-navigation';
 import { useNotificationSync } from '@/hooks/use-notification-sync';
+import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { colors } = useTheme();
   const { width } = useWindowDimensions();
   // Tabs only render when signed in, so these run exactly when they should.
   useNotificationSync();
@@ -25,7 +24,10 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        // Token accent, NOT the Expo template's teal — the active tab is the
+        // most-seen accent in the app and must match the brand color.
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.textTertiary,
         headerShown: false,
         tabBarButton: HapticTab,
         ...(sideNav

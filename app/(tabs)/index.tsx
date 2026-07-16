@@ -3,7 +3,7 @@
 // (collapsed trash) at the bottom. Swipeable cards, optimistic mutations,
 // undo toasts, spring regroup animations. Quick-add FAB is the next slice.
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -27,6 +27,7 @@ import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { animateListChanges } from '@/lib/animate-layout';
+import { isReduceMotionEnabled } from '@/lib/reduced-motion';
 import { confirmDialog } from '@/lib/confirm';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import { EMPTY_FILTERS, filterTasks, hasActiveFilters, type TaskFilters } from '@/lib/tasks/filter';
@@ -156,8 +157,23 @@ export default function TaskListScreen() {
   // motion). Collapsed sections skip straight to the mutation.
   const [exiting, setExiting] = useState<Map<number, { to: 'left' | 'right'; delayMs: number }>>(new Map());
 
+  // Ref-held so unmounting mid-cascade neither leaks the timer nor LOSES the
+  // batch action the user already committed to.
+  const cascadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCascade = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      if (cascadeTimer.current) clearTimeout(cascadeTimer.current);
+      pendingCascade.current?.();
+      pendingCascade.current = null;
+    },
+    []
+  );
+
   function runWithCascade(ids: number[], visible: boolean, mutate: () => void) {
-    if (!visible) {
+    // Reduce-motion: rows would jump instead of slide, so waiting out the
+    // animation window is pure delay — mutate immediately.
+    if (!visible || isReduceMotionEnabled()) {
       mutate();
       return;
     }
@@ -165,7 +181,9 @@ export default function TaskListScreen() {
     ids.forEach((id, index) => marks.set(id, { to: 'left', delayMs: Math.min(index, 8) * 30 }));
     setExiting(marks);
     const animationWindow = 240 + Math.min(ids.length, 8) * 30 + 40;
-    setTimeout(() => {
+    pendingCascade.current = mutate;
+    cascadeTimer.current = setTimeout(() => {
+      pendingCascade.current = null;
       setExiting(new Map());
       mutate();
     }, animationWindow);
@@ -245,12 +263,22 @@ export default function TaskListScreen() {
           />
         </Text>
         {count > 0 && (
-          <Text
+          // Pressable + hitSlop: a caption-size Text alone is a ~24pt target
+          // for a batch action (HIG minimum is 44). "Empty trash" is the ONE
+          // irreversible list action — red, unlike the undoable "Clear all".
+          <Pressable
             onPress={isCompleted ? clearAllCompleted : emptyTrash}
+            hitSlop={12}
             accessibilityRole="button"
-            style={[type.caption, { color: colors.accent, paddingVertical: space.s1 }]}>
-            {isCompleted ? 'Clear all' : 'Empty trash'}
-          </Text>
+            style={{ paddingVertical: space.s1 }}>
+            <Text
+              style={[
+                type.caption,
+                { color: isCompleted ? colors.accent : colors.statusOverdueAccent },
+              ]}>
+              {isCompleted ? 'Clear all' : 'Empty trash'}
+            </Text>
+          </Pressable>
         )}
       </View>
     );
@@ -290,9 +318,9 @@ export default function TaskListScreen() {
       ) : error ? (
         <View style={[pageContent, { paddingHorizontal: space.s4 }]}>
           <Text style={[type.body, { color: colors.textPrimary }]}>Couldn’t load tasks.</Text>
-          <Text style={[type.body, { color: colors.accent, marginTop: space.s2 }]} onPress={() => refetch()}>
-            Retry
-          </Text>
+          <Pressable onPress={() => refetch()} hitSlop={12} accessibilityRole="button" style={{ marginTop: space.s2 }}>
+            <Text style={[type.body, { color: colors.accent }]}>Retry</Text>
+          </Pressable>
         </View>
       ) : (
         <SectionList

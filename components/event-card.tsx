@@ -5,6 +5,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
 import type { CalendarEvent } from '@/lib/events/use-events';
+import { readableTextColor } from '@/lib/theme/pill-colors';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export function eventTimeLabel(event: CalendarEvent): string {
@@ -24,9 +25,13 @@ export function EventCard({
    *  the event detail sheet). */
   showNotes?: boolean;
 }) {
-  const { colors, space, radius, type, monoFont } = useTheme();
+  const { colors, space, radius, type, monoFont, isDark } = useTheme();
   const timeLabel = eventTimeLabel;
   const accent = event.color ?? colors.statusEventAccent;
+  // The raw CSV color stays on the border (decorative); TEXT gets the same
+  // lightness clamp as pills — a pale-yellow event otherwise renders
+  // illegible time text on a light surface.
+  const timeColor = event.color ? readableTextColor(event.color, isDark) : colors.statusEventAccent;
   return (
     <Pressable
       onPress={onPress && (() => onPress(event))}
@@ -44,7 +49,7 @@ export function EventCard({
       <Text numberOfLines={2} style={[type.h2, { color: colors.textPrimary }]}>
         {event.title}
       </Text>
-      <Text style={{ fontFamily: monoFont, fontSize: 12, lineHeight: 16, color: accent }}>
+      <Text style={{ fontFamily: monoFont, fontSize: 12, lineHeight: 16, color: timeColor }}>
         {timeLabel(event)}
       </Text>
       {event.location && (

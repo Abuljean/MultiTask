@@ -42,6 +42,9 @@ export function SearchFilterBar({ filters, onChange, panelOpen, onTogglePanel, c
       <Pressable
         key={label}
         onPress={onPress}
+        // 36pt visual height + slop = the 44pt HIG minimum without changing
+        // the tuned look.
+        hitSlop={4}
         accessibilityRole="button"
         accessibilityState={{ selected }}
         style={{

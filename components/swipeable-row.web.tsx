@@ -72,6 +72,15 @@ export function SwipeableRow({
   // pointer is always hovering the zone it clicks; programmatic test
   // clicks weren't, which is how this shipped broken).
   const committing = useRef(false);
+  const commitTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A commit scheduled right before unmount/recycle must not fire against a
+  // stale row.
+  useEffect(() => {
+    return () => {
+      if (commitTimeout.current) clearTimeout(commitTimeout.current);
+    };
+  }, []);
 
   // Hover slides the row aside; leaving slides it back.
   useEffect(() => {
@@ -127,6 +136,10 @@ export function SwipeableRow({
   }));
 
   function commit(side: 'left' | 'right') {
+    // Re-entry guard: the edge zones stay clickable during the 250ms exit
+    // window, so a double-click would fire the mutation (and its toast)
+    // twice without this.
+    if (committing.current) return;
     committing.current = true;
     setHoverSide(null);
     // Slide off in the action's direction, THEN fire — the handler's
@@ -139,7 +152,8 @@ export function SwipeableRow({
       { duration: 240, easing: Easing.out(Easing.cubic) },
       () => {}
     );
-    setTimeout(() => {
+    if (commitTimeout.current) clearTimeout(commitTimeout.current);
+    commitTimeout.current = setTimeout(() => {
       if (side === 'left') onSwipeRight();
       else onSwipeLeft();
     }, 250);

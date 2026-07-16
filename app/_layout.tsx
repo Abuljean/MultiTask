@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
@@ -13,7 +13,7 @@ import { UndoToastProvider } from '@/components/undo-toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { initNotifications } from '@/lib/notifications';
-import { AppThemeProvider } from '@/lib/theme/use-theme';
+import { AppThemeProvider, useTheme } from '@/lib/theme/use-theme';
 
 // One QueryClient for the app's lifetime (module scope, NOT inside the
 // component — recreating it on re-render would wipe the cache).
@@ -93,6 +93,7 @@ function RootNavigator() {
 // the status bar all flip together when the header toggle is tapped.
 function ThemedApp() {
   const colorScheme = useColorScheme();
+  const { colors, isDark } = useTheme();
 
   // Web: tell the browser which scheme we're rendering so NATIVE chrome
   // (scrollbars, form controls) matches — otherwise dark mode gets a glaring
@@ -103,8 +104,27 @@ function ThemedApp() {
     }
   }, [colorScheme]);
 
+  // Navigation chrome (tab bar, headers, backgrounds) draws from OUR tokens,
+  // not the stock React Navigation palettes — the nav surfaces are part of
+  // the skin seam (style packs must be able to restyle them too).
+  const navTheme = useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: colors.accent,
+        background: colors.surface,
+        card: colors.surfaceElevated,
+        text: colors.textPrimary,
+        border: colors.borderSubtle,
+        notification: colors.accent,
+      },
+    };
+  }, [isDark, colors]);
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navTheme}>
       <UndoToastProvider>
         <RootNavigator />
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

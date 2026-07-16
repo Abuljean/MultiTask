@@ -19,7 +19,13 @@ export const DEFAULT_LEAD_MINUTES = 60;
 const MAX_SCHEDULED = 48; // stay clear of iOS's 64 pending-notification cap
 const SOURCE_TAG = 'multitask-task';
 
-/** One-time process setup: foreground display + Android channel. */
+/** Category + action ids for the "Complete" button on task notifications.
+ *  The response handler (hooks/use-notification-navigation.ts) matches on
+ *  COMPLETE_ACTION_ID and runs the normal completion mutation. */
+export const TASK_NOTIFICATION_CATEGORY = 'task-due';
+export const COMPLETE_ACTION_ID = 'complete';
+
+/** One-time process setup: foreground display + Android channel + actions. */
 export function initNotifications() {
   if (Platform.OS === 'web') return; // scheduled notifications are native-only
   Notifications.setNotificationHandler({
@@ -37,6 +43,16 @@ export function initNotifications() {
       vibrationPattern: [0, 250, 250, 250],
     });
   }
+  // Opens the app to run the completion through the normal optimistic
+  // mutation path (background completion without opening = a future native
+  // task, out of scope for now).
+  Notifications.setNotificationCategoryAsync(TASK_NOTIFICATION_CATEGORY, [
+    {
+      identifier: COMPLETE_ACTION_ID,
+      buttonTitle: 'Complete',
+      options: { opensAppToForeground: true },
+    },
+  ]).catch(() => {});
 }
 
 /** True if we may schedule. Prompts the system dialog only the first time
@@ -146,6 +162,7 @@ export async function syncTaskNotifications(
         title: item.title,
         body: item.body,
         sound: true,
+        categoryIdentifier: TASK_NOTIFICATION_CATEGORY,
         data: { source: SOURCE_TAG, taskId: item.taskId, kind: item.kind },
       },
       trigger: {

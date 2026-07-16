@@ -59,6 +59,19 @@
         {
           "calendarPermission": "Adds your tasks as events in a Multitask calendar, and removes them when tasks are completed or deleted."
         }
+      ],
+      [
+        "expo-quick-actions",
+        {
+          "iosActions": [
+            {
+              "id": "quick-add",
+              "title": "Quick add",
+              "icon": "symbol:plus",
+              "params": { "href": "/quick-add" }
+            }
+          ]
+        }
       ]
     ],
     "experiments": {

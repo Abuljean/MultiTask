@@ -13,6 +13,7 @@ import {
 } from '@powersync/react-native';
 
 import { supabase } from '@/lib/supabase';
+import { isPermanentRejection } from '@/lib/sync/permanent-errors';
 
 // Postgres primary-key column per table (the client `id` maps onto it).
 const PK_COLUMN: Record<string, string> = {
@@ -26,13 +27,6 @@ const PK_COLUMN: Record<string, string> = {
 function pkValue(table: string, id: string): number | string {
   return table === 'recurring_completion' ? id : Number(id);
 }
-
-// SQLSTATE classes that will NEVER succeed on retry:
-//   22 data exception (e.g. 22001 value too long)
-//   23 integrity violation (unique/FK/check)
-//   42 access rule violation (RLS denial 42501, undefined column, 428C9)
-// Anything else (no code = network, 5xx, PostgREST transport) is transient.
-const PERMANENT_SQLSTATE = /^(22|23|42)/;
 
 // Ops dropped as permanently rejected — food for the future sync-state
 // indicator (docs/design/02). Module-level so UI can poll it cheaply.
@@ -83,10 +77,14 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
           if (error) throw error;
         }
       } catch (error: unknown) {
-        const code = (error as { code?: string })?.code ?? '';
-        if (PERMANENT_SQLSTATE.test(code)) {
+        if (isPermanentRejection(error)) {
           droppedOpCount += 1;
-          console.warn('Dropping permanently rejected sync op', op.table, op.op, code);
+          console.warn(
+            'Dropping permanently rejected sync op',
+            op.table,
+            op.op,
+            (error as { code?: string })?.code
+          );
           continue;
         }
         throw error;

@@ -27,7 +27,7 @@ export function parseWallClock(value: string): Date {
     throw new Error(`Not a wall-clock datetime: "${value}"`);
   }
   const [, year, month, day, hour, minute, second] = m;
-  return new Date(
+  const date = new Date(
     Number(year),
     Number(month) - 1,
     Number(day),
@@ -35,6 +35,19 @@ export function parseWallClock(value: string): Date {
     Number(minute),
     Number(second ?? '0')
   );
+  // The Date constructor silently normalizes out-of-range components
+  // ("2026-02-30" becomes March 2, hour 25 rolls into the next day) — a
+  // corrupted value must fail loudly, not shift the deadline.
+  if (
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() !== Number(month) - 1 ||
+    date.getDate() !== Number(day) ||
+    date.getHours() !== Number(hour) ||
+    date.getMinutes() !== Number(minute)
+  ) {
+    throw new Error(`Invalid wall-clock datetime: "${value}"`);
+  }
+  return date;
 }
 
 /** Date at 23:59 local → "2026-07-10T23:59:00" (local components, no zone). */

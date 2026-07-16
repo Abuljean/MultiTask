@@ -12,7 +12,9 @@ export function confirmDialog(options: {
   if (Platform.OS === 'web') {
     const g = globalThis as { confirm?: (message: string) => boolean };
     const text = options.message ? `${options.title}\n\n${options.message}` : options.title;
-    return Promise.resolve(g.confirm ? g.confirm(text) : true);
+    // Fail CLOSED: if confirm() doesn't exist (embedded webview), refusing
+    // is safer than silently approving a destructive action.
+    return Promise.resolve(g.confirm ? g.confirm(text) : false);
   }
   return new Promise((resolve) => {
     Alert.alert(

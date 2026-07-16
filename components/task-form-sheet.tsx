@@ -9,7 +9,7 @@
 // never close the sheet.
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   Platform,
@@ -283,9 +283,14 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     if (discard) close();
   }
 
+  // The button stays tappable during the ~260ms close animation — without a
+  // synchronous guard a double tap submits (and creates) twice.
+  const submitted = useRef(false);
+
   function submit() {
     const trimmed = title.trim();
-    if (!trimmed) return;
+    if (!trimmed || submitted.current) return;
+    submitted.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onSubmit({
       title: trimmed,

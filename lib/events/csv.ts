@@ -232,10 +232,14 @@ export function csvToEvents(text: string): CsvImportResult {
     const endText = cell('endTime');
     if (endText) {
       const endTime = parseTimePart(endText);
-      if (endTime) {
-        end = new Date(date.year, date.month - 1, date.day, endTime.hour, endTime.minute, 0, 0);
-        if (end.getTime() <= start.getTime()) end = null; // nonsense range → drop end
+      if (!endTime) {
+        // A malformed END time is a row error like a malformed start time —
+        // silently importing without it would misrepresent the schedule.
+        errors.push(`Row ${i + 1}: couldn’t read the end time "${endText}".`);
+        continue;
       }
+      end = new Date(date.year, date.month - 1, date.day, endTime.hour, endTime.minute, 0, 0);
+      if (end.getTime() <= start.getTime()) end = null; // nonsense range → drop end
     }
 
     // Cap text fields at the server varchar limits — an over-long value

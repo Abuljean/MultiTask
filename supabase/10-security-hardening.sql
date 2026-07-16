@@ -11,8 +11,13 @@
 --   B. The email-matching link (02's trigger + 03's backfill) trusted
 --      UNCONFIRMED emails: with "Confirm email" off, anyone could sign up as
 --      a legacy web user's address and inherit their tasks. Both paths now
---      require email_confirmed_at. (Also: treat the "Confirm email = ON"
---      dashboard toggle as a security invariant from now on.)
+--      require email_confirmed_at.
+--      ⚠ IMPORTANT CAVEAT: this gate only means something while the
+--      "Confirm email" dashboard toggle is ON. With it OFF, Supabase
+--      auto-confirms signups (email_confirmed_at gets set immediately), so
+--      the check passes for an attacker too. "Confirm email = ON" is
+--      therefore a SECURITY INVARIANT for as long as email-match linking
+--      exists — never turn it off again.
 --   C. RLS on task never constrained the legacy user_id column — any
 --      authenticated user could INSERT/UPDATE rows with an arbitrary user_id
 --      and plant content in a web user's list. Column-level grants now
@@ -100,6 +105,19 @@ update storage.buckets
 set file_size_limit = 1048576,
     allowed_mime_types = array['image/jpeg', 'image/png', 'image/webp']
 where id = 'avatars';
+
+-- ========================================================================
+-- F. events: end may not precede start (belt for the client-side check)
+-- ========================================================================
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'event_end_after_start'
+  ) then
+    alter table public.event
+      add constraint event_end_after_start check (end_at is null or end_at >= start_at);
+  end if;
+end $$;
 
 -- ========================================================================
 -- Sanity checks (read-only):

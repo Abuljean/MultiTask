@@ -82,12 +82,14 @@ export function SwipeableRow({
     };
   }, []);
 
-  // Hover slides the row aside; leaving slides it back.
+  // Hover slides the row aside; leaving slides it back. Also frozen during a
+  // programmatic `exit` (bulk-clear cascade) — a hover change mid-cascade
+  // would replace the slide-off with a timing back to rest.
   useEffect(() => {
-    if (committing.current) return;
+    if (committing.current || exit) return;
     const target = hoverSide === 'left' ? REVEAL_PX : hoverSide === 'right' ? -REVEAL_PX : 0;
     translateX.value = withTiming(target, { duration: 180, easing: Easing.out(Easing.cubic) });
-  }, [hoverSide, translateX]);
+  }, [exit, hoverSide, translateX]);
 
   // Reset when the row's logical state changes.
   useEffect(() => {

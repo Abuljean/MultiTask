@@ -26,13 +26,14 @@ decide. 85 tests green (was 40), `tsc` clean after every batch.
      the unique constraint. WITH CHECK now requires ownership.
    - `avatars` bucket had no size/MIME caps = free public file hosting under
      your project domain. Now 1 MB, images only.
-2. **Decide: "Confirm email" stays ON, permanently.** It's currently ON (by
-   accident, flagged 2026-07-11). The audit reclassified it: with email-match
-   account linking in the schema, confirm-email is a **security invariant**,
-   not a dev-phase convenience. If you turn it OFF, the `10` fix still guards
-   the legacy-task takeover, but new signups with someone else's address
-   remain possible. Recommendation: leave ON; the deployed web app already
-   receives the confirm links.
+2. **"Confirm email" must stay ON, permanently.** It's currently ON (by
+   accident, flagged 2026-07-11). Both the audit and CodeRabbit converged on
+   this, and CodeRabbit sharpened it: with the toggle OFF, Supabase
+   **auto-confirms signups** — `email_confirmed_at` gets set immediately — so
+   the `10` migration's confirmed-email gate passes for an attacker too. The
+   gate is only meaningful while the toggle is ON. As long as email-match
+   account linking exists (the by-design migration path for the 11 legacy web
+   users), confirm-email is a **security invariant**, not a preference.
 
 ---
 
@@ -130,10 +131,40 @@ rollback; not worth the complexity now.
 - The **first whole-repo run wedged WSL** hard enough that even `wsl --shutdown`
   hung; recovery = `taskkill /F /IM wsl.exe /IM wslhost.exe /IM wslrelay.exe`,
   then shutdown + fresh boot.
-- A scoped re-run was started after the fixes; its findings (if any arrived
-  after this report) are in the session transcript — ask Claude next session,
-  or re-run:
-  `wsl -d Ubuntu -u root -- sh -c "cd /mnt/c/Users/IamJa/Documents/multitask && /root/.local/bin/coderabbit review --plain --type committed --base-commit 188a0c6"`
+- **The scoped re-run completed: 47 findings (2 critical / 35 major / 10
+  minor) over 203 files** — it diffed the review branch against main, so it
+  double-checked the overnight fixes too. Outcome:
+  - **Applied** (final commit): confirm-dialog fails closed on web; filter
+    treats `''` as a real filter value; Daily pull-to-refresh includes the
+    Schedule; "Trash emptied"/"Event deleted" toasts are success-gated (no
+    undo exists for them); form Add button double-tap guard; batch cascade is
+    single-flight; web hover-reset can no longer cancel a cascade exit;
+    `parseWallClock` rejects rolled-over components; CSV rejects malformed
+    END times; pill/event text now walks lightness until it truly clears
+    **WCAG 4.5:1** against the composited background (saturated yellow was
+    ~2.5:1 even after the old clamp); import rejects files >5 MB before
+    loading into memory; sync init failure resets its partial state;
+    sync-status hook catches init rejections; `supabase/09` repairs partial
+    state + reconciles publication membership; `supabase/10` adds an
+    `end_at >= start_at` check and documents the confirm-email caveat.
+  - **Declined as false positives**: ~8 "respect reduced motion" findings on
+    Reanimated-driven sheets/swipes — Reanimated ≥3.5 honors the OS setting
+    by default (`ReduceMotion.System`); the imperative `LayoutAnimation` gap
+    was the real violation and was already fixed in batch 4. Also: the web
+    edge-zone hover design (intentional, developer-tuned), and the avatars /
+    recurring-completion SQL findings (already fixed in `10`, which
+    CodeRabbit read as unapplied because it diffs files, not the live DB).
+  - **Deferred to your judgment** (added to the list above): dark-mode
+    `textOnAccent` contrast (3.3:1 — but the accent is still the placeholder
+    you plan to replace, so pick the pair together); splash-screen/font
+    readiness management in the root layout; import/event sheets not
+    scrollable on short screens or huge dynamic type; chunked CSV import is
+    not atomic (needs an RPC or import-id + upsert); calendar year-view
+    exposes years the month list can't scroll to (2021–2032 vs ±~2.5y);
+    serializing notification reconciles; collapsed-section hydration race;
+    email-based account linking as a concept (CodeRabbit rates it critical;
+    it IS your documented, deliberate migration design — the confirm-email
+    invariant is the compensating control).
 
 ---
 

@@ -171,6 +171,9 @@ export default function TaskListScreen() {
   );
 
   function runWithCascade(ids: number[], visible: boolean, mutate: () => void) {
+    // Single-flight: a second tap during a running cascade would double the
+    // mutation and its toast.
+    if (pendingCascade.current) return;
     // Reduce-motion: rows would jump instead of slide, so waiting out the
     // animation window is pure delay — mutate immediately.
     if (!visible || isReduceMotionEnabled()) {
@@ -183,6 +186,7 @@ export default function TaskListScreen() {
     const animationWindow = 240 + Math.min(ids.length, 8) * 30 + 40;
     pendingCascade.current = mutate;
     cascadeTimer.current = setTimeout(() => {
+      cascadeTimer.current = null;
       pendingCascade.current = null;
       setExiting(new Map());
       mutate();
@@ -228,10 +232,12 @@ export default function TaskListScreen() {
     if (!confirmed) return;
     runWithCascade(ids, !deletedCollapsed, () => {
       animateListChanges();
+      // Success-gated toast: this is the one action with no undo, so
+      // pre-announcing "emptied" and then erroring would be contradictory.
       bulkPermanentDelete.mutate(ids, {
+        onSuccess: () => toast.show({ message: 'Trash emptied.' }),
         onError: () => toast.show({ message: 'Couldn’t empty the trash — check your connection.' }),
       });
-      toast.show({ message: 'Trash emptied.' });
     });
   }
 

@@ -52,6 +52,20 @@ describe('time range validation', () => {
   });
 });
 
+describe('end time validation', () => {
+  it('rejects a malformed non-empty end time as a row error', () => {
+    const { events, errors } = run('title,date,start time,end time\nBad,2026-07-20,10:00,garbage');
+    expect(events).toHaveLength(0);
+    expect(errors).toHaveLength(1);
+  });
+
+  it('still drops a nonsense range (end before start) without an error', () => {
+    const { events, errors } = run('title,date,start time,end time\nOk,2026-07-20,10:00,09:00');
+    expect(errors).toHaveLength(0);
+    expect(events[0].end).toBeNull();
+  });
+});
+
 describe('column alias priority', () => {
   it('prefers "title" over "subject" regardless of column order', () => {
     const { events } = run('subject,date,title\nMath,2026-07-20,Real title');

@@ -23,27 +23,34 @@
 -- whole step a no-op once the surrogate key exists.
 do $$
 begin
-  if exists (
+  -- Each step checked independently, so a partially-applied earlier run
+  -- (e.g. id column added but PK lost) gets REPAIRED, not skipped.
+  if not exists (
     select 1 from information_schema.columns
     where table_schema = 'public'
       and table_name = 'recurring_completion'
       and column_name = 'id'
   ) then
-    raise notice 'recurring_completion already migrated; skipping';
-    return;
+    alter table public.recurring_completion
+      drop constraint if exists recurring_completion_pkey;
+    alter table public.recurring_completion
+      add column id uuid not null default gen_random_uuid();
   end if;
 
-  alter table public.recurring_completion
-    drop constraint if exists recurring_completion_pkey;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.recurring_completion'::regclass and contype = 'p'
+  ) then
+    alter table public.recurring_completion add primary key (id);
+  end if;
 
-  alter table public.recurring_completion
-    add column id uuid not null default gen_random_uuid();
-
-  alter table public.recurring_completion
-    add primary key (id);
-
-  alter table public.recurring_completion
-    add constraint recurring_completion_task_day_unique unique (recurring_task_id, done_on);
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'recurring_completion_task_day_unique'
+  ) then
+    alter table public.recurring_completion
+      add constraint recurring_completion_task_day_unique unique (recurring_task_id, done_on);
+  end if;
 end $$;
 
 -- ========================================================================
@@ -53,6 +60,14 @@ do $$
 begin
   if not exists (select 1 from pg_publication where pubname = 'powersync') then
     create publication powersync for table
+      public.task,
+      public.recurring_task,
+      public.recurring_completion,
+      public.event;
+  else
+    -- Reconcile membership: an existing-but-incomplete publication would
+    -- silently leave tables out of replication.
+    alter publication powersync set table
       public.task,
       public.recurring_task,
       public.recurring_completion,

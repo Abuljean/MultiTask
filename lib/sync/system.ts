@@ -64,6 +64,11 @@ async function doInit(): Promise<boolean> {
     db = created;
     return true;
   } catch (error) {
+    // Reset the partial state: leaving instance/connector populated would
+    // make reconnectSync() nudge a half-initialized database instead of
+    // triggering a clean re-init.
+    instance = null;
+    connector = null;
     console.warn('PowerSync init failed; staying in online mode', error);
     return false;
   }

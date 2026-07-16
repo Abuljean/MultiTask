@@ -20,7 +20,13 @@ export function useSyncStatus(): SyncState | null {
     let dispose: (() => void) | undefined;
 
     (async () => {
-      const ready = await initSync();
+      // initSync catches internally and resolves false, but a defensive
+      // catch keeps a future refactor from turning this into an unhandled
+      // rejection that silently masks sync failures as "online mode".
+      const ready = await initSync().catch((error) => {
+        console.warn('useSyncStatus: initSync failed', error);
+        return false;
+      });
       if (!ready || cancelled) return;
       const db = syncDb();
       if (!db) return;

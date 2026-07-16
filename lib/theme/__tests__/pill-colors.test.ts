@@ -36,6 +36,18 @@ describe('pillColors', () => {
     const { background } = pillColors('#4ade80', false);
     expect(background).toMatch(/0\.15\)$/);
   });
+
+  it('pushes saturated yellow past the plain clamp until it actually reads (WCAG loop)', () => {
+    // Pure yellow at the old L=0.32 clamp was only ~2.5:1 on a light pill.
+    // The contrast loop must darken it further.
+    const { text } = pillColors('#ffff00', false);
+    expect(lightnessOf(text)).toBeLessThan(0.32);
+  });
+
+  it('keeps saturated blue readable in dark mode by lightening past the clamp', () => {
+    const { text } = pillColors('#0000ff', true);
+    expect(lightnessOf(text)).toBeGreaterThan(0.7);
+  });
 });
 
 describe('readableTextColor', () => {

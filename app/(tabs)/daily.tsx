@@ -60,17 +60,20 @@ export default function DailyScreen() {
   const [newTitle, setNewTitle] = useState('');
   const [pullRefreshing, setPullRefreshing] = useState(false);
 
+  // The uploaded daily schedule (handoff MUST): today's imported events.
+  const eventsQuery = useEvents();
+  const { data: events } = eventsQuery;
+
   async function onPullRefresh() {
     setPullRefreshing(true);
     try {
-      await Promise.all([recurring.refetch(), tasksQuery.refetch()]);
+      // All three data sources this screen renders — omitting events left
+      // the Schedule section stale on pull-to-refresh.
+      await Promise.all([recurring.refetch(), tasksQuery.refetch(), eventsQuery.refetch()]);
     } finally {
       setPullRefreshing(false);
     }
   }
-
-  // The uploaded daily schedule (handoff MUST): today's imported events.
-  const { data: events } = useEvents();
   const todaysEvents = useMemo(() => {
     const todayKey = localDateKey(new Date());
     return (events ?? [])

@@ -44,8 +44,11 @@ export function filterTasks(
   return tasks
     .filter((task) => {
       if (task.deletedAt) return false; // trash never appears in results
-      if (filters.category && task.category !== filters.category) return false;
-      if (filters.subject && task.subject !== filters.subject) return false;
+      // Explicit null checks: '' is a legal filter value (the default empty
+      // subject) — truthiness would silently skip it while hasActiveFilters
+      // reports a filter active.
+      if (filters.category !== null && task.category !== filters.category) return false;
+      if (filters.subject !== null && task.subject !== filters.subject) return false;
       if (filters.priority !== null) {
         if (filters.priority === 0 ? task.priority != null : task.priority !== filters.priority) {
           return false;

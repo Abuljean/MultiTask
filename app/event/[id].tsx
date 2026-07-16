@@ -79,10 +79,13 @@ export default function EventDetailScreen() {
     });
     if (!confirmed) return;
     afterClose.current = () => {
+      // Toast on SUCCESS only — announcing "deleted" then erroring is
+      // contradictory (this delete has no undo, so there's no reason to
+      // pre-announce like the optimistic task toasts do).
       deleteEvent.mutate(eventId, {
+        onSuccess: () => toast.show({ message: 'Event deleted.' }),
         onError: () => toast.show({ message: 'Couldn’t delete the event — check your connection.' }),
       });
-      toast.show({ message: 'Event deleted.' });
     };
     close();
   }

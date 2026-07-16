@@ -4,7 +4,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { readAsStringAsync } from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -21,6 +21,8 @@ import { useTheme } from '@/lib/theme/use-theme';
 const COLOR_CHOICES = ['red', 'orange', 'yellow', 'green', 'teal', 'indigo', 'purple', 'pink'].map(
   (name) => ({ name, hex: NAMED_EVENT_COLORS[name] })
 );
+
+const isWeb = Platform.OS === 'web';
 
 export default function ImportEventsScreen() {
   const router = useRouter();
@@ -114,12 +116,22 @@ export default function ImportEventsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isWeb && styles.containerWeb]}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close import" />
       <Animated.View
         style={[
           sheetStyle,
+          isWeb && styles.sheetWeb,
+          // Desktop/web: a centered dialog like quick-add, not a full-bleed
+          // bottom sheet (audit 2026-07-16 — the sheet spanned the whole
+          // 1440px viewport).
+          isWeb && {
+            borderBottomLeftRadius: radius.card,
+            borderBottomRightRadius: radius.card,
+            borderWidth: 1,
+            borderColor: colors.borderSubtle,
+          },
           {
             backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: radius.card,
@@ -251,6 +263,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  containerWeb: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  sheetWeb: {
+    width: '100%',
+    maxWidth: 560,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

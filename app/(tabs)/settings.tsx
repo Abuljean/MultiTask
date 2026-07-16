@@ -316,7 +316,7 @@ export default function SettingsScreen() {
           onPress={() => router.push('/styles')}
           accessibilityRole="button"
           style={{ paddingVertical: space.s2 }}>
-          <Text style={[type.body, { color: colors.accent }]}>Styles</Text>
+          <Text style={[type.body, { color: colors.accent }]}>Browse styles</Text>
           <Text style={[type.caption, { color: colors.textTertiary, marginTop: space.s1 }]}>
             New looks are coming soon.
           </Text>

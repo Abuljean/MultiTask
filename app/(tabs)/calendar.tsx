@@ -220,7 +220,15 @@ export default function CalendarScreen() {
 
   function renderDayCell(date: Date | null, index: number, isCurrentMonth: boolean) {
     if (!date) {
-      return <View key={`blank-${index}`} style={[styles.dayCell, { height: dayCellHeight }]} />;
+      // borderColor must match the real cells — dayCell has a hairline top
+      // border, and an unset color paints it BLACK (the dark line segments
+      // over leading/trailing blank days caught in the 2026-07-16 audit).
+      return (
+        <View
+          key={`blank-${index}`}
+          style={[styles.dayCell, { height: dayCellHeight, borderColor: colors.borderSubtle }]}
+        />
+      );
     }
     const key = localDateKey(date);
     const dayTasks = byDay.get(key) ?? [];

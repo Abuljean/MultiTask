@@ -6,7 +6,7 @@
 // here (developer decision 2026-07-12, doc 10 APP-7).
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -45,13 +45,21 @@ export default function StylesScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isWeb && styles.containerWeb]}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close styles" />
       <Animated.View
         style={[
           sheetStyle,
           styles.sheet,
+          // Desktop/web: centered dialog like quick-add (audit 2026-07-16 —
+          // bottom-pinned, the sheet could hang past the viewport edge).
+          isWeb && {
+            borderBottomLeftRadius: radius.card,
+            borderBottomRightRadius: radius.card,
+            borderWidth: 1,
+            borderColor: colors.borderSubtle,
+          },
           {
             backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: radius.card,
@@ -117,10 +125,17 @@ export default function StylesScreen() {
   );
 }
 
+const isWeb = Platform.OS === 'web';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  containerWeb: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

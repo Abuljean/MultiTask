@@ -33,6 +33,8 @@ const MAPPING = {
   'gearshape.fill': 'settings',
   magnifyingglass: 'search',
   'tray.and.arrow.down': 'download',
+  eye: 'visibility',
+  'eye.slash': 'visibility-off',
 } as IconMapping;
 
 /**

@@ -1,99 +1,102 @@
-// Bare-bones sign-up screen. Same deal as sign-in: plumbing now, design later.
-// Themed just enough to be legible in dark mode.
+// Sign-up — designed pass (was the bare placeholder). Layout/visuals live in
+// components/auth-form.tsx; validation + error copy in lib/auth/form.ts.
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { AuthButton, AuthField, AuthMessage, AuthScreen } from '@/components/auth-form';
+import { friendlyAuthError, validateEmail, validatePassword } from '@/lib/auth/form';
 import { supabase } from '@/lib/supabase';
+import { space, type } from '@/lib/theme/tokens';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function signUp() {
+    const emailProblem = validateEmail(email);
+    const passwordProblem = validatePassword(password, { isNew: true });
+    setEmailError(emailProblem);
+    setPasswordError(passwordProblem);
+    if (emailProblem || passwordProblem) return;
+
     setSubmitting(true);
-    setError(null);
+    setServerError(null);
     setNotice(null);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-    });
-    if (error) {
-      setError(error.message);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        setServerError(friendlyAuthError(error));
+        setSubmitting(false);
+        return;
+      }
+      if (!data.session) {
+        // Email confirmation is on (a security invariant — see supabase/10):
+        // no session until the emailed link is clicked.
+        setNotice('Check your email for a confirmation link, then come back and sign in.');
+        setSubmitting(false);
+      }
+      // With a session, the auth listener fires and the guard in
+      // app/_layout.tsx takes us into the app.
+    } catch (e) {
+      setServerError(friendlyAuthError(e as Error));
       setSubmitting(false);
-      return;
     }
-    if (!data.session) {
-      // Email confirmation is enabled in Supabase: no session until the
-      // link in the email is clicked. Tell the user what to do next.
-      setNotice('Check your email for a confirmation link, then come back and sign in.');
-      setSubmitting(false);
-    }
-    // If confirmation is disabled, data.session is set, the auth listener
-    // fires, and the guard in app/_layout.tsx takes us into the app.
   }
 
-  const inputStyle = [
-    styles.input,
-    {
-      color: colors.textPrimary,
-      borderColor: colors.borderSubtle,
-      backgroundColor: colors.surfaceElevated,
-    },
-  ];
-
   return (
-    <View style={[styles.screen, { backgroundColor: colors.surface }]}>
-      <View style={styles.container}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Create account</Text>
-        <TextInput
-          style={inputStyle}
-          placeholder="Email"
-          placeholderTextColor={colors.textTertiary}
-          autoCapitalize="none"
-          autoComplete="email"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput
-          style={inputStyle}
-          placeholder="Password (min 6 characters)"
-          placeholderTextColor={colors.textTertiary}
-          autoComplete="new-password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
-        {error ? <Text style={{ color: colors.statusOverdueAccent }}>{error}</Text> : null}
-        {notice ? <Text style={{ color: colors.statusOngoingAccent }}>{notice}</Text> : null}
-        {submitting ? (
-          <ActivityIndicator color={colors.accent} />
-        ) : (
-          <Button
-            title="Create account"
-            color={colors.accent}
-            onPress={signUp}
-            disabled={!email.trim() || password.length < 6}
-          />
-        )}
-        <Link href="/sign-in" style={[styles.link, { color: colors.accent }]}>
-          Already have an account? Sign in
-        </Link>
+    <AuthScreen title="Create account">
+      <AuthField
+        label="Email"
+        value={email}
+        onChangeText={(v) => {
+          setEmail(v);
+          if (emailError) setEmailError(null);
+        }}
+        error={emailError}
+        autoComplete="email"
+        keyboardType="email-address"
+        returnKeyType="next"
+      />
+      <AuthField
+        label="Password"
+        value={password}
+        onChangeText={(v) => {
+          setPassword(v);
+          if (passwordError) setPasswordError(null);
+        }}
+        error={passwordError}
+        secure
+        autoComplete="new-password"
+        returnKeyType="go"
+        onSubmitEditing={signUp}
+      />
+      {serverError ? <AuthMessage kind="error" text={serverError} /> : null}
+      {notice ? <AuthMessage kind="notice" text={notice} /> : null}
+      <AuthButton label="Create account" onPress={signUp} loading={submitting} />
+      <View style={styles.footer}>
+        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+          Already have an account?{' '}
+          <Link href="/sign-in" style={{ color: colors.accent, fontWeight: '600' }}>
+            Sign in
+          </Link>
+        </Text>
       </View>
-    </View>
+    </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, justifyContent: 'center' },
-  container: { width: '100%', maxWidth: 420, alignSelf: 'center', padding: 24, gap: 12 },
-  title: { fontSize: 24, fontWeight: '600', marginBottom: 12 },
-  input: { minHeight: 44, borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
-  link: { marginTop: 16, textAlign: 'center' },
+  footer: { alignItems: 'center', marginTop: space.s2 },
+  footerText: { ...type.body },
 });

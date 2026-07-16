@@ -9,16 +9,23 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InputPromptDialog, type PromptRequest } from '@/components/input-prompt';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { useUndoToast } from '@/components/undo-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { useCalendarSyncEnabled } from '@/hooks/use-calendar-sync-enabled';
 import { useNotificationLead } from '@/hooks/use-notification-lead';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { base64ToBytes } from '@/lib/base64';
+import { removeDeviceCalendar } from '@/lib/device-calendar/sync';
+import {
+  getCalendarPermissionState,
+  requestCalendarAccess,
+  type CalendarPermissionState,
+} from '@/lib/device-calendar/system';
 import {
   ensureNotificationPermission,
   getNotificationPermissionStatus,
@@ -40,10 +47,56 @@ export default function SettingsScreen() {
   const leadMinutes = useNotificationLead();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifStatus, setNotifStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+  const calendarSyncEnabled = useCalendarSyncEnabled();
+  const [calendarPermission, setCalendarPermission] = useState<CalendarPermissionState>('unavailable');
+  // Metadata round-trips through Supabase before the switch value updates —
+  // this bridges the gap so the toggle answers the finger immediately.
+  const [calendarPending, setCalendarPending] = useState<boolean | null>(null);
 
   useEffect(() => {
     getNotificationPermissionStatus().then(setNotifStatus);
+    getCalendarPermissionState().then(setCalendarPermission);
   }, []);
+
+  useEffect(() => {
+    setCalendarPending(null);
+  }, [calendarSyncEnabled]);
+
+  async function toggleCalendarSync(next: boolean) {
+    setCalendarPending(next);
+    if (next) {
+      const granted = await requestCalendarAccess();
+      const state = await getCalendarPermissionState();
+      setCalendarPermission(state);
+      if (!granted) {
+        setCalendarPending(null);
+        toast.show({
+          message:
+            state === 'unavailable'
+              ? 'Calendar needs the latest app build.'
+              : 'Allow calendar access for Multitask in your phone’s Settings.',
+        });
+        return;
+      }
+      const { error } = await supabase.auth.updateUser({ data: { calendar_sync_enabled: true } });
+      if (error) {
+        setCalendarPending(null);
+        toast.show({ message: 'Couldn’t save the setting.' });
+        return;
+      }
+      // The calendar-sync hook reconciles as soon as the session updates.
+      toast.show({ message: 'Tasks will appear in your calendar.' });
+    } else {
+      const { error } = await supabase.auth.updateUser({ data: { calendar_sync_enabled: false } });
+      if (error) {
+        setCalendarPending(null);
+        toast.show({ message: 'Couldn’t save the setting.' });
+        return;
+      }
+      await removeDeviceCalendar();
+      toast.show({ message: 'Multitask events removed from your calendar.' });
+    }
+  }
 
   const user = session?.user;
   const email = user?.email ?? '';
@@ -303,6 +356,32 @@ export default function SettingsScreen() {
           })}
         </View>
 
+        {Platform.OS !== 'web' && (
+          <>
+            {sectionTitle('Calendar')}
+            <View style={[styles.switchRow, { minHeight: 44 }]}>
+              <Text style={[type.body, { color: colors.textPrimary, flex: 1 }]}>
+                Add tasks to my calendar
+              </Text>
+              <Switch
+                value={calendarPending ?? calendarSyncEnabled}
+                onValueChange={toggleCalendarSync}
+                trackColor={{ true: colors.accent }}
+                accessibilityLabel="Add tasks to my calendar"
+              />
+            </View>
+            <Text style={[type.caption, { color: colors.textTertiary, marginTop: space.s1 }]}>
+              {calendarSyncEnabled
+                ? 'Open tasks with a due date appear as 30-minute events in a “Multitask” calendar.'
+                : calendarPermission === 'denied'
+                  ? 'Off — allow calendar access for Multitask in your phone’s Settings first.'
+                  : calendarPermission === 'unavailable'
+                    ? 'Needs the latest app build.'
+                    : 'Off — nothing is written to your calendar.'}
+            </Text>
+          </>
+        )}
+
         {sectionTitle('Timezone')}
         <Text style={[type.body, { color: colors.textSecondary }]}>
           Follows your phone: {deviceTimezone}. Due times are wall-clock — they don’t shift when you
@@ -344,6 +423,11 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

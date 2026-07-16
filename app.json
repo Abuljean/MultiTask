@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.abuljean.multitask",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCalendarsFullAccessUsageDescription": "Adds your tasks as events in a Multitask calendar, and removes them when tasks are completed or deleted."
       }
     },
     "android": {
@@ -51,6 +52,12 @@
           "photosPermission": "Lets you pick a profile picture from your photo library.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Adds your tasks as events in a Multitask calendar, and removes them when tasks are completed or deleted."
         }
       ]
     ],

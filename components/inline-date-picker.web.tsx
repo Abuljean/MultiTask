@@ -4,6 +4,7 @@
 import { unstable_createElement } from 'react-native-web';
 
 import { useTheme } from '@/lib/theme/use-theme';
+import { pickerInputStyle } from './inline-date-picker-style';
 import type { InlineDatePickerProps } from './inline-date-picker';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -32,18 +33,7 @@ export function InlineDatePicker({ mode, value, onChange }: InlineDatePickerProp
       }
       onChange(next, false);
     },
-    style: {
-      height: 44,
-      padding: '0 12px',
-      fontSize: 15,
-      color: colors.textPrimary,
-      backgroundColor: colors.surfaceSunken,
-      border: `1px solid ${colors.borderSubtle}`,
-      borderRadius: radius.button,
-      colorScheme: 'light dark',
-      width: '100%',
-      boxSizing: 'border-box',
-    },
+    style: pickerInputStyle(colors, radius.button),
   });
 }
 

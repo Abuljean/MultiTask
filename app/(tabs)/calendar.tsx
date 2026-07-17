@@ -21,6 +21,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
 import { buildMonthMatrix, localDateKey, tasksByDay } from '@/lib/tasks/calendar';
@@ -81,7 +82,10 @@ export default function CalendarScreen() {
   const MAX_BARS = 3;
 
   const now = new Date();
-  const todayKey = localDateKey(now);
+  // Reactive across midnight (deferred #13): the today-circle and overdue
+  // tinting follow the date without needing an unrelated re-render.
+  const today = useToday();
+  const todayKey = localDateKey(today);
   const [mode, setMode] = useState<'month' | 'year'>('month');
   // The month the month-list should open at (changed by the year view).
   const [anchor, setAnchor] = useState<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });

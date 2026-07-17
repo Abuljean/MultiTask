@@ -24,6 +24,7 @@ import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useTaskActions } from '@/hooks/use-task-actions';
+import { useToday } from '@/hooks/use-today';
 import { animateListChanges } from '@/lib/animate-layout';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
 import { RECURRING_TITLE_MAX } from '@/lib/limits';
@@ -54,6 +55,10 @@ export default function DailyScreen() {
   const unarchiveRecurring = useUnarchiveRecurringTask();
 
   const tasksQuery = useTasks();
+  // Rolls over at midnight / on resume (deferred #13) — re-derives the
+  // header date, today's events, due-today, and the recurring "done today"
+  // split, which all read it below.
+  const today = useToday();
   const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
 
   const [adding, setAdding] = useState(false);
@@ -75,21 +80,20 @@ export default function DailyScreen() {
     }
   }
   const todaysEvents = useMemo(() => {
-    const todayKey = localDateKey(new Date());
+    const todayKey = localDateKey(today);
     return (events ?? [])
       .filter((e) => localDateKey(e.start) === todayKey)
       .sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [events]);
+  }, [events, today]);
 
   // Due today = not deleted, not completed, has a due date before tomorrow
   // (overdue included). Completed today's tasks live on the Tasks tab.
   const dueToday = useMemo(() => {
-    const now = new Date();
-    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const tomorrowStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
     return (tasksQuery.data ?? [])
       .filter((t) => !t.deletedAt && !t.isCompleted && t.dueDate && t.dueDate.getTime() < tomorrowStart.getTime())
       .sort((a, b) => (a.dueDate?.getTime() ?? 0) - (b.dueDate?.getTime() ?? 0));
-  }, [tasksQuery.data]);
+  }, [tasksQuery.data, today]);
 
   // Same movement rules as regular tasks (docs/design/05 final values):
   // swipe right = check off (or un-check when in Done), row slides off and
@@ -143,7 +147,6 @@ export default function DailyScreen() {
     );
   }
 
-  const today = new Date();
   const pendingRecurring = (recurring.data ?? []).filter((t) => !t.doneToday);
   const doneRecurring = (recurring.data ?? []).filter((t) => t.doneToday);
 

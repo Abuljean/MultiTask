@@ -25,6 +25,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { useTaskActions } from '@/hooks/use-task-actions';
+import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { animateListChanges } from '@/lib/animate-layout';
 import { isReduceMotionEnabled } from '@/lib/reduced-motion';
@@ -46,6 +47,7 @@ export default function TaskListScreen() {
   const insets = useSafeAreaInsets();
   const { colors, space, type } = useTheme();
   const { data: tasks, isLoading, error, refetch } = useTasks();
+  const today = useToday(); // regroups sections when the date rolls over (deferred #13)
   const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
   const bulkSoftDelete = useBulkSoftDeleteTasks();
   const bulkRestore = useBulkRestoreTasks();
@@ -143,7 +145,10 @@ export default function TaskListScreen() {
         ? { ...section, data: [] }
         : section
     );
-  }, [searching, results, tasks, completedCollapsed, deletedCollapsed]);
+    // `today` isn't read directly — it re-runs the grouping (which calls
+    // new Date() internally) when the local date rolls over (deferred #13).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching, results, tasks, completedCollapsed, deletedCollapsed, today]);
 
   const completedCount = useMemo(
     () => (tasks ?? []).filter((t) => t.isCompleted && !t.deletedAt).length,

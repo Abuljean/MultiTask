@@ -11,6 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.abuljean.multitask",
+      "appleTeamId": "942W32N3DA",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.abuljean.multitask"]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCalendarsFullAccessUsageDescription": "Adds your tasks as events in a Multitask calendar, and removes them when tasks are completed or deleted."
@@ -33,6 +37,7 @@
     },
     "plugins": [
       "expo-router",
+      "@bacons/apple-targets",
       [
         "expo-splash-screen",
         {

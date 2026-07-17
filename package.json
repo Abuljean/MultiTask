@@ -15,6 +15,7 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^4.0.7",
     "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@op-engineering/op-sqlite": "^15.2.14",

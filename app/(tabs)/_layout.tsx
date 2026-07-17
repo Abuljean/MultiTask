@@ -8,6 +8,7 @@ import { useCalendarSync } from '@/hooks/use-calendar-sync';
 import { useNotificationNavigation } from '@/hooks/use-notification-navigation';
 import { useNotificationSync } from '@/hooks/use-notification-sync';
 import { useQuickActions } from '@/hooks/use-quick-actions';
+import { useWidgetSnapshot } from '@/hooks/use-widget-snapshot';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export default function TabLayout() {
@@ -18,6 +19,7 @@ export default function TabLayout() {
   useNotificationNavigation();
   useCalendarSync();
   useQuickActions();
+  useWidgetSnapshot();
 
   // Desktop/web: navigation moves to a LEFT-side rail (developer pick
   // 2026-07-11 after seeing the right rail live; docs/design/08 updated) —

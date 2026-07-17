@@ -18,6 +18,16 @@ let db: AbstractPowerSyncDatabase | null = null;
 let instance: AbstractPowerSyncDatabase | null = null;
 let connector: PowerSyncBackendConnector | null = null;
 let initPromise: Promise<boolean> | null = null;
+// Set during doInit from the dynamically-imported connector module, so
+// callers (Settings, the dropped-op toast) never import connector directly —
+// that would drag PowerSync into bundles that must not contain it.
+let droppedCounter: (() => number) | null = null;
+
+/** How many queued offline changes were permanently dropped (RLS/constraint
+ *  rejections). 0 whenever sync isn't running. */
+export function droppedOpCount(): number {
+  return droppedCounter ? droppedCounter() : 0;
+}
 
 /** The local database when sync mode is active, else null. Hooks branch on
  *  this at call time, so the switch is transparent to screens. */
@@ -39,13 +49,15 @@ export function initSync(): Promise<boolean> {
 async function doInit(): Promise<boolean> {
   if (!syncAvailable()) return false;
   try {
-    const [{ PowerSyncDatabase }, { OPSqliteOpenFactory }, { AppSchema }, { SupabaseConnector }] =
+    const [{ PowerSyncDatabase }, { OPSqliteOpenFactory }, { AppSchema }, connectorModule] =
       await Promise.all([
         import('@powersync/react-native'),
         import('@powersync/op-sqlite'),
         import('./schema'),
         import('./connector'),
       ]);
+    const { SupabaseConnector } = connectorModule;
+    droppedCounter = connectorModule.getDroppedOpCount;
 
     const factory = new OPSqliteOpenFactory({ dbFilename: 'multitask.db' });
     const created = new PowerSyncDatabase({ schema: AppSchema, database: factory });

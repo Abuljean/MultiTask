@@ -5,6 +5,7 @@ import { Platform, useWindowDimensions } from 'react-native';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useCalendarSync } from '@/hooks/use-calendar-sync';
+import { useDroppedOpCount } from '@/hooks/use-dropped-ops';
 import { useNotificationNavigation } from '@/hooks/use-notification-navigation';
 import { useNotificationSync } from '@/hooks/use-notification-sync';
 import { useQuickActions } from '@/hooks/use-quick-actions';
@@ -20,6 +21,7 @@ export default function TabLayout() {
   useCalendarSync();
   useQuickActions();
   useWidgetSnapshot();
+  useDroppedOpCount({ notify: true });
 
   // Desktop/web: navigation moves to a LEFT-side rail (developer pick
   // 2026-07-11 after seeing the right rail live; docs/design/08 updated) —

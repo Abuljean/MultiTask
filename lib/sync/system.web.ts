@@ -24,6 +24,10 @@ export async function teardownSync(): Promise<void> {}
 
 export function reconnectSync(): void {}
 
+export function droppedOpCount(): number {
+  return 0;
+}
+
 /** Placeholder list builder for IN (...) clauses. */
 export function placeholders(count: number): string {
   return Array.from({ length: count }, () => '?').join(',');

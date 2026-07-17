@@ -17,6 +17,7 @@ import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { useUndoToast } from '@/components/undo-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCalendarSyncEnabled } from '@/hooks/use-calendar-sync-enabled';
+import { useDroppedOpCount } from '@/hooks/use-dropped-ops';
 import { useNotificationLead } from '@/hooks/use-notification-lead';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { base64ToBytes } from '@/lib/base64';
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [notifStatus, setNotifStatus] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
   const calendarSyncEnabled = useCalendarSyncEnabled();
+  const droppedOps = useDroppedOpCount();
   const [calendarPermission, setCalendarPermission] = useState<CalendarPermissionState>('unavailable');
   // Metadata round-trips through Supabase before the switch value updates —
   // this bridges the gap so the toggle answers the finger immediately.
@@ -402,6 +404,13 @@ export default function SettingsScreen() {
         </Pressable>
 
         {sectionTitle('Session')}
+        {droppedOps > 0 && (
+          <Text style={[type.caption, { color: colors.textTertiary, marginBottom: space.s2 }]}>
+            {droppedOps === 1
+              ? '1 change couldn’t sync and was skipped.'
+              : `${droppedOps} changes couldn’t sync and were skipped.`}
+          </Text>
+        )}
         {actionRow('Sign out', () => supabase.auth.signOut(), colors.statusOverdueAccent)}
 
         <Text style={[type.caption, { color: colors.textTertiary, marginTop: space.s8 }]}>

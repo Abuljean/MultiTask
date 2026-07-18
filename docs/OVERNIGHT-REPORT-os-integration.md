@@ -153,5 +153,15 @@ zero console errors (verified signed-in via headless Chrome).
 - iOS: compile pending Morning step 1.
 
 ---
-*Addendum — notification-action E2E result:* see final section below (the
-test needed a real scheduled fire; it was running as this report was written).
+## Addendum — notification-action E2E (honest status)
+
+Verified on the emulator: permission granted, a due-in-66-min task inserted
+server-side **synced down through PowerSync** and the reconcile **scheduled
+its notifications (2 alarms registered for the app, carrying the new
+Complete-action category)**. The emulator guest then froze (twice — a known
+hazard of long headless runs; recovery recipe is in the memory note) before
+the fire could be observed, so the LAST link — Android rendering the
+Complete button and the tap completing the task — is **not machine-verified**.
+The handler shares the exact mutation path the swipe uses (tested), and your
+iPhone will exercise the full flow in Morning step 3. If Complete
+misbehaves there, look at `hooks/use-notification-navigation.ts` first.

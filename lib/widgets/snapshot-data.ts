@@ -1,30 +1,51 @@
-// Pure builder for the widget's data snapshot (handoff content rule: today's
-// tasks, overdue first, else the next task by date). The JS side does ALL the
-// thinking — status derivation, ordering, display strings — so the Swift
-// widget stays a dumb renderer of ready-to-show rows.
+// Pure builder for the widget's data snapshot. The JS side does ALL the
+// thinking — status derivation, ordering, display strings, the small-widget
+// fallback — so the Swift widget stays a dumb renderer of ready-to-show rows.
+// Content rule (handoff): today's tasks, overdue first; events shown distinct;
+// completed-today kept so they can be un-checked; when nothing's due today the
+// small widget falls back to upcoming-urgent, then the next day with tasks.
+import type { CalendarEvent } from '@/lib/events/use-events';
+import { localDateKey } from '@/lib/tasks/calendar';
 import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const TODAY_CAP = 6;
+const OPEN_CAP = 8; // open task rows carried before "+N more"
+const COMPLETED_CAP = 4; // completed rows kept (so you can un-check them)
+const EVENTS_CAP = 6;
+
+export type WidgetTaskStatus = 'overdue' | 'urgent' | 'ongoing' | 'none';
 
 export type WidgetTask = {
   id: number;
   title: string;
   dueLabel: string;
-  status: 'overdue' | 'urgent' | 'ongoing' | 'none';
+  status: WidgetTaskStatus;
+  done: boolean;
 };
 
+export type WidgetEvent = {
+  id: number;
+  title: string;
+  timeLabel: string;
+};
+
+export type WidgetFallback =
+  | { kind: 'urgent'; count: number; title: string; dueLabel: string }
+  | { kind: 'nextDay'; dayLabel: string; count: number; title: string }
+  | { kind: 'clear' };
+
 export type WidgetSnapshot = {
-  /** "Fri, Jul 17" — the mono dateline idiom. */
   dateLabel: string;
-  /** Open tasks due today + everything overdue, overdue first (max 6). */
+  /** Due today + overdue tasks, open first (overdue first), then completed. */
   today: WidgetTask[];
-  /** The single next upcoming task — only set when `today` is empty. */
-  next: WidgetTask | null;
-  /** Total open today+overdue count (today may be capped). */
+  /** Today's events — rendered distinct from tasks, not completable. */
+  events: WidgetEvent[];
+  /** Open (not done) today+overdue count, uncapped, for "+N more". */
   openCount: number;
+  /** Shown when nothing is due today (openCount === 0); null otherwise. */
+  fallback: WidgetFallback | null;
   generatedAt: string;
 };
 
@@ -39,50 +60,107 @@ function timeLabel(date: Date): string {
   return `${hours}:${minutes} ${date.getHours() < 12 ? 'AM' : 'PM'}`;
 }
 
-function toWidgetTask(task: Task, now: Date, urgencyThresholdHours: number): WidgetTask {
-  const status = deriveStatus(task, { now, urgencyThresholdHours });
-  const due = task.dueDate as Date;
-  const sameDay =
-    due.getFullYear() === now.getFullYear() &&
-    due.getMonth() === now.getMonth() &&
-    due.getDate() === now.getDate();
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** Today's tasks show a time; older overdue ones show which day they slipped
+ *  from (a bare time would read as "today" and mislead). */
+function dueLabelFor(due: Date, now: Date): string {
+  return sameDay(due, now) ? timeLabel(due) : dayLabel(due);
+}
+
+function statusFor(task: Task, now: Date, urgencyThresholdHours: number): WidgetTaskStatus {
+  // Derive as if open so the accent bar stays meaningful even on completed
+  // rows (the widget dims done rows itself).
+  const s = deriveStatus({ isCompleted: false, dueDate: task.dueDate }, { now, urgencyThresholdHours });
+  return s === 'overdue' ? 'overdue' : s === 'urgent' ? 'urgent' : s === 'ongoing' ? 'ongoing' : 'none';
+}
+
+function toWidgetTask(task: Task, now: Date, threshold: number, done: boolean): WidgetTask {
   return {
     id: task.id,
     title: task.title,
-    // Today's tasks show the time; older overdue ones show which day they
-    // slipped from — a bare time would read as "today" and lie.
-    dueLabel: sameDay ? timeLabel(due) : dayLabel(due),
-    status: status === 'overdue' ? 'overdue' : status === 'urgent' ? 'urgent' : status === 'ongoing' ? 'ongoing' : 'none',
+    dueLabel: dueLabelFor(task.dueDate as Date, now),
+    status: statusFor(task, now, threshold),
+    done,
   };
 }
 
 export function buildWidgetSnapshot(
   tasks: Task[],
+  events: CalendarEvent[],
   now: Date,
   urgencyThresholdHours: number
 ): WidgetSnapshot {
   const endOfToday = new Date(now);
   endOfToday.setHours(23, 59, 59, 999);
 
-  const open = tasks.filter((t) => !t.isCompleted && !t.deletedAt && t.dueDate);
-  const todayAndOverdue = open
-    .filter((t) => (t.dueDate as Date) <= endOfToday)
-    .sort((a, b) => (a.dueDate as Date).getTime() - (b.dueDate as Date).getTime() || a.id - b.id);
+  const dated = tasks.filter((t) => !t.deletedAt && t.dueDate);
+  const byDue = (a: Task, b: Task) =>
+    (a.dueDate as Date).getTime() - (b.dueDate as Date).getTime() || a.id - b.id;
 
-  let next: Task | null = null;
-  if (todayAndOverdue.length === 0) {
-    next =
-      open
-        .filter((t) => (t.dueDate as Date) > endOfToday)
-        .sort((a, b) => (a.dueDate as Date).getTime() - (b.dueDate as Date).getTime() || a.id - b.id)[0] ??
-      null;
-  }
+  const openToday = dated
+    .filter((t) => !t.isCompleted && (t.dueDate as Date) <= endOfToday)
+    .sort(byDue);
+  const doneToday = dated
+    .filter((t) => t.isCompleted && (t.dueDate as Date) <= endOfToday)
+    // Most-recently-due first — the one you likely just checked stays visible.
+    .sort((a, b) => (b.dueDate as Date).getTime() - (a.dueDate as Date).getTime());
+
+  const today: WidgetTask[] = [
+    ...openToday.slice(0, OPEN_CAP).map((t) => toWidgetTask(t, now, urgencyThresholdHours, false)),
+    ...doneToday.slice(0, COMPLETED_CAP).map((t) => toWidgetTask(t, now, urgencyThresholdHours, true)),
+  ];
+
+  const todayKey = localDateKey(now);
+  const widgetEvents: WidgetEvent[] = events
+    .filter((e) => localDateKey(e.start) === todayKey)
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+    .slice(0, EVENTS_CAP)
+    .map((e) => ({ id: e.id, title: e.title, timeLabel: e.allDay ? 'All day' : timeLabel(e.start) }));
 
   return {
     dateLabel: dayLabel(now),
-    today: todayAndOverdue.slice(0, TODAY_CAP).map((t) => toWidgetTask(t, now, urgencyThresholdHours)),
-    next: next ? toWidgetTask(next, now, urgencyThresholdHours) : null,
-    openCount: todayAndOverdue.length,
+    today,
+    events: widgetEvents,
+    openCount: openToday.length,
+    fallback: openToday.length === 0 ? computeFallback(dated, now, urgencyThresholdHours) : null,
     generatedAt: now.toISOString(),
+  };
+}
+
+function computeFallback(dated: Task[], now: Date, urgencyThresholdHours: number): WidgetFallback {
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  const upcoming = dated
+    .filter((t) => !t.isCompleted && (t.dueDate as Date) > endOfToday)
+    .sort((a, b) => (a.dueDate as Date).getTime() - (b.dueDate as Date).getTime() || a.id - b.id);
+
+  if (upcoming.length === 0) return { kind: 'clear' };
+
+  const thresholdMs = urgencyThresholdHours * 60 * 60 * 1000;
+  const urgent = upcoming.filter((t) => (t.dueDate as Date).getTime() - now.getTime() <= thresholdMs);
+  if (urgent.length > 0) {
+    return {
+      kind: 'urgent',
+      count: urgent.length,
+      title: urgent[0].title,
+      dueLabel: dueLabelFor(urgent[0].dueDate as Date, now),
+    };
+  }
+
+  // The next day that has tasks — "all of the ones on the 25th".
+  const firstKey = localDateKey(upcoming[0].dueDate as Date);
+  const sameDayTasks = upcoming.filter((t) => localDateKey(t.dueDate as Date) === firstKey);
+  return {
+    kind: 'nextDay',
+    dayLabel: dayLabel(upcoming[0].dueDate as Date),
+    count: sameDayTasks.length,
+    title: upcoming[0].title,
   };
 }

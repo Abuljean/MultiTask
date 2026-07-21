@@ -22,9 +22,13 @@ export async function writeWidgetSnapshot(payload: unknown): Promise<boolean> {
   }
 }
 
-/** Task ids the widget's Complete button queued while the app was away.
- *  Read-and-clear; the caller runs them through the normal mutation path. */
-export async function drainPendingCompletions(): Promise<number[]> {
+export type PendingToggle = { id: number; done: boolean };
+
+/** Check-off toggles the widget queued while the app was away — each carries
+ *  the DESIRED state (done true/false) so the widget can both complete and
+ *  un-complete. Read-and-clear; the caller runs them through the normal
+ *  mutation path. Tolerates the legacy plain-number format (= complete). */
+export async function drainPendingToggles(): Promise<PendingToggle[]> {
   if (Platform.OS !== 'ios') return [];
   try {
     const { ExtensionStorage } = await import('@bacons/apple-targets');
@@ -33,7 +37,15 @@ export async function drainPendingCompletions(): Promise<number[]> {
     storage.remove(PENDING_KEY);
     const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
     if (!Array.isArray(list)) return [];
-    return list.filter((v): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0);
+    return list
+      .map((v): PendingToggle | null => {
+        if (typeof v === 'number' && Number.isInteger(v) && v > 0) return { id: v, done: true };
+        if (v && typeof v === 'object' && Number.isInteger((v as PendingToggle).id)) {
+          return { id: (v as PendingToggle).id, done: Boolean((v as PendingToggle).done) };
+        }
+        return null;
+      })
+      .filter((v): v is PendingToggle => v !== null && v.id > 0);
   } catch {
     return [];
   }

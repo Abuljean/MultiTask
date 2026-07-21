@@ -231,6 +231,75 @@ export function useImportTasks() {
   });
 }
 
+/** Delete a category: categories aren't their own records — they exist only
+ *  as the distinct `category` values across your tasks — so "deleting" one
+ *  clears it off every task that carries it (back to Uncategorized).
+ *  Optimistic, so the chip disappears from the form immediately. */
+export function useDeleteCategory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
+    mutationFn: async (name: string) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE task SET category=?, category_color=? WHERE category=?', [
+          DEFAULT_CATEGORY,
+          DEFAULT_CATEGORY_COLOR,
+          name,
+        ]);
+        return;
+      }
+      const { error } = await supabase
+        .from('task')
+        .update({ category: DEFAULT_CATEGORY, category_color: DEFAULT_CATEGORY_COLOR })
+        .eq('category', name);
+      if (error) throw error;
+    },
+    onMutate: (name) =>
+      applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) =>
+          t.category === name
+            ? { ...t, category: DEFAULT_CATEGORY, categoryColor: DEFAULT_CATEGORY_COLOR }
+            : t
+        )
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => settleInvalidate(queryClient),
+  });
+}
+
+/** Delete a subject — same idea as useDeleteCategory (clears to no subject). */
+export function useDeleteSubject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
+    mutationFn: async (name: string) => {
+      const db = syncDb();
+      if (db) {
+        await db.execute('UPDATE task SET subject=?, subject_color=? WHERE subject=?', [
+          '',
+          DEFAULT_SUBJECT_COLOR,
+          name,
+        ]);
+        return;
+      }
+      const { error } = await supabase
+        .from('task')
+        .update({ subject: '', subject_color: DEFAULT_SUBJECT_COLOR })
+        .eq('subject', name);
+      if (error) throw error;
+    },
+    onMutate: (name) =>
+      applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) =>
+          t.subject === name ? { ...t, subject: '', subjectColor: DEFAULT_SUBJECT_COLOR } : t
+        )
+      ),
+    onError: (_error, _vars, context) => rollback(queryClient, context),
+    onSettled: () => settleInvalidate(queryClient),
+  });
+}
+
 /** Full-field edit from the task detail sheet. Optimistic like the rest. */
 export function useUpdateTask() {
   const queryClient = useQueryClient();

@@ -28,10 +28,11 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { CollapsibleReveal } from '@/components/collapsible-reveal';
 import { InlineDatePicker } from '@/components/inline-date-picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useUndoToast } from '@/components/undo-toast';
 import { confirmDialog } from '@/lib/confirm';
 import { TASK_DESCRIPTION_MAX, TASK_TITLE_MAX } from '@/lib/limits';
 import { endOfToday } from '@/lib/tasks/dates';
-import { useTasks } from '@/lib/tasks/use-tasks';
+import { useDeleteCategory, useDeleteSubject, useTasks } from '@/lib/tasks/use-tasks';
 import { priorityTiers } from '@/lib/theme/tokens';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -70,21 +71,31 @@ function SelectChip({
   label,
   selected,
   onPress,
+  onDelete,
   color,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
+  /** When set, long-press (or the VoiceOver "Delete" action) removes it. */
+  onDelete?: () => void;
   color?: string;
 }) {
   const { colors, space, radius, type } = useTheme();
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onDelete}
       // 40pt chip + slop = 44pt touch target.
       hitSlop={2}
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      // Long-press is a gesture, so give assistive tech a real equivalent.
+      accessibilityHint={onDelete ? 'Long press to delete' : undefined}
+      accessibilityActions={onDelete ? [{ name: 'delete', label: 'Delete' }] : undefined}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === 'delete') onDelete?.();
+      }}
       style={{
         borderWidth: 1.5,
         borderColor: selected ? colors.accent : colors.borderSubtle,
@@ -191,6 +202,9 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
 
   // Existing categories/subjects, data-driven from the user's real tasks.
   const { data: tasks } = useTasks();
+  const deleteCategory = useDeleteCategory();
+  const deleteSubject = useDeleteSubject();
+  const toast = useUndoToast();
   const { categories, subjects } = useMemo(() => {
     const cats = new Map<string, string>();
     const subs = new Map<string, string>();
@@ -301,6 +315,35 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
       subject,
     });
     close();
+  }
+
+  // Long-press a category/subject chip to delete it. Because these aren't
+  // their own records (just the distinct values across your tasks), deleting
+  // one clears it off every task that carries it — the confirm says how many.
+  async function removeOption(kind: 'category' | 'subject', option: NamedColor) {
+    const inUse = (tasks ?? []).filter((t) =>
+      kind === 'category' ? t.category === option.name : t.subject === option.name
+    ).length;
+    const confirmed = await confirmDialog({
+      title: `Delete ${kind} “${option.name}”?`,
+      message:
+        inUse > 0
+          ? `It’ll be removed from ${inUse} task${inUse === 1 ? '' : 's'}.`
+          : 'This removes it from the list.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    if (kind === 'category') {
+      setExtraCategories((prev) => prev.filter((c) => c.name !== option.name));
+      if (category?.name === option.name) setCategory(null);
+      if (inUse > 0) deleteCategory.mutate(option.name);
+    } else {
+      setExtraSubjects((prev) => prev.filter((s) => s.name !== option.name));
+      if (subject?.name === option.name) setSubject(null);
+      if (inUse > 0) deleteSubject.mutate(option.name);
+    }
+    toast.show({ message: `${kind === 'category' ? 'Category' : 'Subject'} deleted.` });
   }
 
   // Date/time picker reveal — animated height, slide open/closed.
@@ -587,6 +630,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                     color={c.color}
                     selected={category?.name === c.name}
                     onPress={() => setCategory(category?.name === c.name ? null : c)}
+                    onDelete={() => removeOption('category', c)}
                   />
                 ))}
                 <SelectChip
@@ -615,6 +659,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                     color={s.color}
                     selected={subject?.name === s.name}
                     onPress={() => setSubject(subject?.name === s.name ? null : s)}
+                    onDelete={() => removeOption('subject', s)}
                   />
                 ))}
                 <SelectChip

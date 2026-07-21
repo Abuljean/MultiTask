@@ -1,10 +1,12 @@
-// CSV event import (handoff MUST). Pick a file → preview what parsed (and
-// what didn't) → import. No in-app event creation by design: the CSV is
-// made elsewhere. Transparent sheet route, same shell pattern as quick-add.
+// CSV import. Pick a file → preview what parsed → choose whether the rows
+// land as calendar EVENTS (the default, read-only, distinct from tasks) or as
+// TASKS (with due dates), per-row or in bulk → import. No in-app event
+// creation by design: the CSV is made elsewhere. Transparent sheet route,
+// same shell pattern as quick-add.
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { readAsStringAsync } from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -12,7 +14,10 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { useUndoToast } from '@/components/undo-toast';
 import { confirmDialog } from '@/lib/confirm';
 import { csvToEvents, NAMED_EVENT_COLORS, type CsvImportResult } from '@/lib/events/csv';
+import { importButtonLabel, importedMessage } from '@/lib/events/import-labels';
+import { eventToNewTask } from '@/lib/events/to-task';
 import { useDeleteAllEvents, useEvents, useImportEvents } from '@/lib/events/use-events';
+import { useImportTasks } from '@/lib/tasks/use-tasks';
 import { useTheme } from '@/lib/theme/use-theme';
 
 // Swatches for the whole-import default (rows with their own color column
@@ -24,6 +29,9 @@ const COLOR_CHOICES = ['red', 'orange', 'yellow', 'green', 'teal', 'indigo', 'pu
 
 const isWeb = Platform.OS === 'web';
 
+/** Bulk destination for the imported rows. 'choose' reveals per-row toggles. */
+type ImportMode = 'events' | 'tasks' | 'choose';
+
 export default function ImportEventsScreen() {
   const router = useRouter();
   const { colors, space, radius, type } = useTheme();
@@ -33,11 +41,26 @@ export default function ImportEventsScreen() {
 
   const { data: existingEvents } = useEvents();
   const importEvents = useImportEvents();
+  const importTasks = useImportTasks();
   const deleteAllEvents = useDeleteAllEvents();
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<CsvImportResult | null>(null);
   const [defaultColor, setDefaultColor] = useState<string | null>(null);
+
+  // Events vs tasks. Default 'events' (the handoff behavior); `modeExplicit`
+  // tracks whether the user actually engaged the selector, so we know whether
+  // to ask before importing (see onImportPress).
+  const [mode, setMode] = useState<ImportMode>('events');
+  const [modeExplicit, setModeExplicit] = useState(false);
+  // Row indices marked as TASKS while in 'choose' mode.
+  const [taskRows, setTaskRows] = useState<Set<number>>(new Set());
+
+  const importing = importEvents.isPending || importTasks.isPending;
+  const allIndices = useMemo(
+    () => (parsed ? parsed.events.map((_, i) => i) : []),
+    [parsed]
+  );
 
   // Sheet enter/exit — same shell as the task form.
   const sheetOffset = useSharedValue(screenHeight);
@@ -81,23 +104,85 @@ export default function ImportEventsScreen() {
       const text = await readAsStringAsync(asset.uri);
       setFileName(asset.name);
       setParsed(csvToEvents(text));
+      // Fresh file → fresh choice.
+      setMode('events');
+      setModeExplicit(false);
+      setTaskRows(new Set());
     } catch {
       toast.show({ message: 'Couldn’t read that file.' });
     }
   }
 
-  function runImport() {
-    if (!parsed || parsed.events.length === 0) return;
-    importEvents.mutate(
-      { events: parsed.events, source: fileName ?? 'import.csv', defaultColor },
-      {
-        onSuccess: (count) => {
-          toast.show({ message: `${count} event${count === 1 ? '' : 's'} imported.` });
-          close();
-        },
-        onError: (error) => toast.show({ message: `Import failed: ${error.message}` }),
+  /** Which row indices become tasks under the current mode. */
+  function taskIndexSet(): Set<number> {
+    if (mode === 'tasks') return new Set(allIndices);
+    if (mode === 'choose') return taskRows;
+    return new Set();
+  }
+
+  function chooseMode(next: ImportMode) {
+    setModeExplicit(true);
+    if (next === 'choose') {
+      // Seed the per-row toggles from the bulk interpretation the user was
+      // just looking at, so switching to "Pick each" doesn't lose it.
+      setTaskRows(mode === 'tasks' ? new Set(allIndices) : new Set(taskRows));
+    }
+    setMode(next);
+  }
+
+  function toggleRow(index: number) {
+    setTaskRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function setAllRows(asTasks: boolean) {
+    setTaskRows(asTasks ? new Set(allIndices) : new Set());
+  }
+
+  async function commitImport(asTasks: Set<number>) {
+    if (!parsed) return;
+    const taskInputs = parsed.events.filter((_, i) => asTasks.has(i)).map(eventToNewTask);
+    const eventInputs = parsed.events.filter((_, i) => !asTasks.has(i));
+    try {
+      if (eventInputs.length > 0) {
+        await importEvents.mutateAsync({
+          events: eventInputs,
+          source: fileName ?? 'import.csv',
+          defaultColor,
+        });
       }
-    );
+      if (taskInputs.length > 0) {
+        await importTasks.mutateAsync({ tasks: taskInputs });
+      }
+      toast.show({ message: importedMessage(eventInputs.length, taskInputs.length) });
+      close();
+    } catch (error) {
+      toast.show({ message: `Import failed: ${(error as Error).message}` });
+    }
+  }
+
+  function onImportPress() {
+    if (!parsed || parsed.events.length === 0) return;
+    // If the user never touched the selector, give them the choice they may
+    // have missed BEFORE anything is written — no create-then-convert churn.
+    if (mode === 'events' && !modeExplicit) {
+      confirmDialog({
+        title: 'Add some as tasks?',
+        message:
+          'A schedule imports as calendar events. You can make some or all of these rows tasks instead.',
+        confirmLabel: 'Choose which',
+        cancelLabel: 'Import as events',
+      }).then((choose) => {
+        if (choose) chooseMode('choose');
+        else commitImport(new Set());
+      });
+      return;
+    }
+    commitImport(taskIndexSet());
   }
 
   async function confirmDeleteAll() {
@@ -114,6 +199,9 @@ export default function ImportEventsScreen() {
       onError: () => toast.show({ message: 'Couldn’t delete events — check your connection.' }),
     });
   }
+
+  const currentTaskCount = taskIndexSet().size;
+  const eventCount = (parsed?.events.length ?? 0) - currentTaskCount;
 
   return (
     <View style={[styles.container, isWeb && styles.containerWeb]}>
@@ -144,7 +232,7 @@ export default function ImportEventsScreen() {
         <Text style={[type.h2, { color: colors.textPrimary }]}>Import calendar events</Text>
         <Text style={[type.body, { color: colors.textSecondary }]}>
           A CSV with columns like title, date, start time, end time, location, color. Rows without a
-          time become all-day events.
+          time become all-day events. You can bring rows in as events or turn them into tasks.
         </Text>
         <Pressable
           onPress={() => router.push('/import-help')}
@@ -211,7 +299,7 @@ export default function ImportEventsScreen() {
         {parsed && (
           <View style={{ gap: space.s2 }}>
             <Text style={[type.body, { color: colors.textPrimary }]}>
-              {fileName}: {parsed.events.length} event{parsed.events.length === 1 ? '' : 's'} ready
+              {fileName}: {parsed.events.length} row{parsed.events.length === 1 ? '' : 's'} ready
               {parsed.errors.length > 0 ? `, ${parsed.errors.length} row${parsed.errors.length === 1 ? '' : 's'} skipped` : ''}
               .
             </Text>
@@ -220,29 +308,134 @@ export default function ImportEventsScreen() {
                 {error}
               </Text>
             ))}
-            {parsed.events.slice(0, 3).map((event, i) => (
-              <Text key={i} numberOfLines={1} style={[type.caption, { color: colors.textSecondary, fontWeight: '400' }]}>
-                {event.title} — {event.start.toLocaleDateString()}{' '}
-                {event.allDay ? '(all day)' : event.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-              </Text>
-            ))}
+
             {parsed.events.length > 0 && (
-              <Pressable
-                onPress={runImport}
-                disabled={importEvents.isPending}
-                accessibilityRole="button"
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  {
-                    backgroundColor: colors.statusEventAccent,
-                    borderRadius: radius.button,
-                    opacity: importEvents.isPending ? 0.5 : pressed ? 0.85 : 1,
-                  },
-                ]}>
-                <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>
-                  {importEvents.isPending ? 'Importing…' : `Import ${parsed.events.length} event${parsed.events.length === 1 ? '' : 's'}`}
+              <>
+                {/* Destination selector — the "know beforehand" affordance. */}
+                <Text style={[type.caption, { color: colors.textSecondary, marginTop: space.s1 }]}>
+                  Import these as
                 </Text>
-              </Pressable>
+                <View style={[styles.segmented, { borderColor: colors.borderSubtle, borderRadius: radius.button }]}>
+                  {(
+                    [
+                      ['events', 'Events'],
+                      ['tasks', 'Tasks'],
+                      ['choose', 'Pick each'],
+                    ] as [ImportMode, string][]
+                  ).map(([value, label], i) => {
+                    const selected = mode === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        onPress={() => chooseMode(value)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        style={[
+                          styles.segment,
+                          i > 0 && { borderLeftWidth: 1, borderLeftColor: colors.borderSubtle },
+                          selected && { backgroundColor: colors.accent },
+                        ]}>
+                        <Text
+                          style={[
+                            type.caption,
+                            { color: selected ? colors.textOnAccent : colors.textPrimary, fontWeight: '600' },
+                          ]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {mode === 'choose' ? (
+                  <View style={{ gap: space.s1 }}>
+                    <View style={styles.chooserActions}>
+                      <Pressable onPress={() => setAllRows(false)} accessibilityRole="button" hitSlop={6}>
+                        <Text style={[type.caption, { color: colors.accent }]}>All events</Text>
+                      </Pressable>
+                      <Pressable onPress={() => setAllRows(true)} accessibilityRole="button" hitSlop={6}>
+                        <Text style={[type.caption, { color: colors.accent }]}>All tasks</Text>
+                      </Pressable>
+                    </View>
+                    <ScrollView
+                      style={{ maxHeight: 220 }}
+                      keyboardShouldPersistTaps="handled"
+                      showsVerticalScrollIndicator={false}>
+                      <View style={{ gap: space.s1 }}>
+                        {parsed.events.map((event, i) => {
+                          const asTask = taskRows.has(i);
+                          return (
+                            <Pressable
+                              key={i}
+                              onPress={() => toggleRow(i)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${event.title}, ${asTask ? 'task' : 'event'}`}
+                              accessibilityHint="Toggles between event and task"
+                              style={[
+                                styles.chooserRow,
+                                { borderColor: colors.borderSubtle, borderRadius: radius.tight },
+                              ]}>
+                              <View style={{ flex: 1, minWidth: 0 }}>
+                                <Text numberOfLines={1} style={[type.body, { color: colors.textPrimary }]}>
+                                  {event.title}
+                                </Text>
+                                <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400' }]}>
+                                  {event.start.toLocaleDateString()}
+                                  {event.allDay
+                                    ? ' · all day'
+                                    : ` · ${event.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`}
+                                </Text>
+                              </View>
+                              <View
+                                style={[
+                                  styles.rowPill,
+                                  {
+                                    backgroundColor: asTask ? colors.accentMuted : 'transparent',
+                                    borderColor: asTask ? colors.accent : colors.statusEventAccent,
+                                    borderRadius: radius.pill,
+                                  },
+                                ]}>
+                                <Text
+                                  style={[
+                                    type.caption,
+                                    { color: asTask ? colors.accent : colors.statusEventAccent, fontWeight: '600' },
+                                  ]}>
+                                  {asTask ? 'Task' : 'Event'}
+                                </Text>
+                              </View>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  </View>
+                ) : (
+                  // Preview the first few rows, as before.
+                  parsed.events.slice(0, 3).map((event, i) => (
+                    <Text key={i} numberOfLines={1} style={[type.caption, { color: colors.textSecondary, fontWeight: '400' }]}>
+                      {event.title} — {event.start.toLocaleDateString()}{' '}
+                      {event.allDay ? '(all day)' : event.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                    </Text>
+                  ))
+                )}
+
+                <Pressable
+                  onPress={onImportPress}
+                  disabled={importing}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    {
+                      backgroundColor: currentTaskCount > 0 && eventCount === 0 ? colors.accent : colors.statusEventAccent,
+                      borderRadius: radius.button,
+                      opacity: importing ? 0.5 : pressed ? 0.85 : 1,
+                    },
+                  ]}>
+                  <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>
+                    {importing ? 'Importing…' : importButtonLabel(eventCount, currentTaskCount)}
+                  </Text>
+                </Pressable>
+              </>
             )}
           </View>
         )}
@@ -293,5 +486,38 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
+  },
+  segmented: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  segment: {
+    flex: 1,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  chooserActions: {
+    flexDirection: 'row',
+    gap: 18,
+    paddingVertical: 4,
+  },
+  chooserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minHeight: 48,
+  },
+  rowPill: {
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    minWidth: 56,
+    alignItems: 'center',
   },
 });

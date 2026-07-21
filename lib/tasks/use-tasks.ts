@@ -182,6 +182,55 @@ export function useCreateTask() {
   });
 }
 
+/** Batch task creation for CSV import ("make these rows tasks, not events").
+ *  Mirrors useImportEvents: dual-mode transport, chunked REST inserts, one
+ *  settle refetch. Not optimistic — a bulk import isn't a per-tap gesture. */
+export function useImportTasks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: TASKS_MUTATION_KEY,
+    mutationFn: async ({ tasks }: { tasks: NewTask[] }) => {
+      const userUuid = await currentUserUuid();
+      const db = syncDb();
+      if (db) {
+        await db.writeTransaction(async (tx) => {
+          for (const input of tasks) {
+            await tx.execute(
+              `INSERT INTO task
+                 (id, user_uuid, title, description, creation_date, due_date, is_completed,
+                  subject, subject_color, category, category_color, priority, deleted_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              [
+                String(newNumericId()),
+                userUuid,
+                input.title,
+                input.description ?? '',
+                new Date().toISOString(),
+                input.dueDate ? formatWallClock(input.dueDate) : null,
+                0,
+                input.subject ?? '',
+                input.subjectColor ?? DEFAULT_SUBJECT_COLOR,
+                input.category ?? DEFAULT_CATEGORY,
+                input.categoryColor ?? DEFAULT_CATEGORY_COLOR,
+                input.priority ?? null,
+                null,
+              ]
+            );
+          }
+        });
+        return tasks.length;
+      }
+      const rows = tasks.map((input) => toInsertRow(input, userUuid));
+      for (let i = 0; i < rows.length; i += 100) {
+        const { error } = await supabase.from('task').insert(rows.slice(i, i + 100));
+        if (error) throw error;
+      }
+      return rows.length;
+    },
+    onSettled: () => settleInvalidate(queryClient),
+  });
+}
+
 /** Full-field edit from the task detail sheet. Optimistic like the rest. */
 export function useUpdateTask() {
   const queryClient = useQueryClient();

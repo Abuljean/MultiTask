@@ -7,6 +7,10 @@ export function confirmDialog(options: {
   title: string;
   message?: string;
   confirmLabel: string;
+  /** Text for the dismiss button (native only; web confirm is OK/Cancel).
+   *  Defaults to 'Cancel'. Use when the "no" branch is a real alternative,
+   *  not just an abort (e.g. "Import as events"). */
+  cancelLabel?: string;
   destructive?: boolean;
 }): Promise<boolean> {
   if (Platform.OS === 'web') {
@@ -21,7 +25,7 @@ export function confirmDialog(options: {
       options.title,
       options.message,
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: options.cancelLabel ?? 'Cancel', style: 'cancel', onPress: () => resolve(false) },
         {
           text: options.confirmLabel,
           style: options.destructive ? 'destructive' : 'default',

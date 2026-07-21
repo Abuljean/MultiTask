@@ -11,18 +11,30 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { useUndoToast } from '@/components/undo-toast';
 import { useTheme } from '@/lib/theme/use-theme';
 
-const AI_PROMPT = `I need a CSV file for my calendar app. Output ONLY raw CSV text (no explanations, no code fences).
+const AI_PROMPT = `You are helping me turn my schedule into a CSV file for my calendar app. I will paste my events in my NEXT message. For now, just read these rules and reply "Ready — paste your events."
 
-Format rules:
-- First line is the header row, exactly: title,date,start time,end time,location,notes,color
-- date: YYYY-MM-DD
-- start time / end time: 24-hour HH:MM or h:mm AM/PM. Leave start time empty for an all-day event. End time is optional.
-- location and notes are optional free text. If a field contains a comma, wrap the whole field in double quotes.
-- color is optional: a hex code like #22c55e, or one of: red, orange, yellow, green, teal, blue, indigo, purple, pink, gray.
-- One row per event. Repeat rows for recurring events (one row per date).
+Each event has these values:
+- title  (REQUIRED) — what the event is called
+- date   (REQUIRED) — the day it happens
+- start time (optional) — leave out for an all-day event
+- end time   (optional)
+- location   (optional)
+- notes      (optional)
+- color      (optional) — a hex code like #22c55e, or one of: red, orange, yellow, green, teal, blue, indigo, purple, pink, gray
 
-Here is my schedule, please convert it:
-[DESCRIBE YOUR SCHEDULE HERE — e.g. "Math class Mon/Wed/Fri 9:00–10:30 in Room 12 for September 2026, make them green..."]`;
+When I paste my events:
+1. Read every one.
+2. If ANY event is missing a REQUIRED value (a title or a date), do NOT guess. List exactly which events are missing which value and ASK me for it, then wait for my reply.
+3. Only once every event has a title and a date, output the CSV.
+
+CSV output rules (when you finally write it):
+- Output ONLY raw CSV text — no explanation, no code fences.
+- First line, exactly: title,date,start time,end time,location,notes,color
+- date as YYYY-MM-DD. Times as 24-hour HH:MM or h:mm AM/PM.
+- One row per event (repeat rows for anything recurring — one row per date).
+- If a field contains a comma, wrap that whole field in double quotes.
+
+Reply "Ready — paste your events" now, and nothing else.`;
 
 export default function ImportHelpScreen() {
   const router = useRouter();
@@ -83,8 +95,9 @@ export default function ImportHelpScreen() {
             and import it. Three ways to get one:
           </Text>
           <Text style={[type.body, { color: colors.textSecondary }]}>
-            1. Ask an AI (easiest): copy the prompt below, paste it into ChatGPT/Claude/Gemini,
-            describe your schedule, and save its reply as a .csv file.{'\n'}
+            1. Ask an AI (easiest): copy the prompt below and send it FIRST. Then paste your events
+            when it asks. It’ll check for anything required that’s missing (a title or a date), ask
+            you for it, and then reply with the CSV to save as a .csv file.{'\n'}
             2. Export from a spreadsheet: build columns in Excel/Google Sheets and use File → Download
             → CSV.{'\n'}
             3. Write it by hand in any text editor — it’s just comma-separated lines.

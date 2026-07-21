@@ -114,11 +114,15 @@ function SelectChip({
   );
 }
 
-/** Inline creator for a new category/subject: name + swatch, Done to create. */
+/** Inline creator for a new category/subject: a name field with an Add button
+ *  at its end, then the swatch palette. The explicit button matters — tapping
+ *  away from a field never "submits" it, so relying on the keyboard's Done key
+ *  alone silently lost the name (reported 2026-07-21). Enter still works too. */
 function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCreate: (option: NamedColor) => void }) {
-  const { colors, space, radius } = useTheme();
+  const { colors, space, radius, type } = useTheme();
   const [name, setName] = useState('');
   const [color, setColor] = useState(SWATCHES[7]);
+  const canAdd = name.trim().length > 0;
 
   function create() {
     const trimmed = name.trim();
@@ -129,23 +133,42 @@ function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCr
 
   return (
     <View style={{ gap: space.s2 }}>
-      <TextInput
-        style={{
-          minHeight: 40,
-          borderWidth: 1,
-          borderColor: colors.borderSubtle,
-          borderRadius: radius.button,
-          color: colors.textPrimary,
-          paddingHorizontal: space.s3,
-          fontSize: 15,
-        }}
-        placeholder={placeholder}
-        placeholderTextColor={colors.textTertiary}
-        value={name}
-        onChangeText={setName}
-        returnKeyType="done"
-        onSubmitEditing={create}
-      />
+      <View style={{ flexDirection: 'row', gap: space.s2, alignItems: 'center' }}>
+        <TextInput
+          style={{
+            flex: 1,
+            minHeight: 40,
+            borderWidth: 1,
+            borderColor: colors.borderSubtle,
+            borderRadius: radius.button,
+            color: colors.textPrimary,
+            paddingHorizontal: space.s3,
+            fontSize: 15,
+          }}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textTertiary}
+          value={name}
+          onChangeText={setName}
+          returnKeyType="done"
+          onSubmitEditing={create}
+        />
+        <Pressable
+          onPress={create}
+          disabled={!canAdd}
+          accessibilityRole="button"
+          accessibilityLabel="Add"
+          style={({ pressed }) => ({
+            minHeight: 40,
+            paddingHorizontal: space.s4,
+            borderRadius: radius.button,
+            backgroundColor: colors.accent,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: !canAdd ? 0.4 : pressed ? 0.85 : 1,
+          })}>
+          <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>Add</Text>
+        </Pressable>
+      </View>
       <View style={[styles.wrapRow, { gap: space.s2 }]}>
         {SWATCHES.map((swatch) => (
           <Pressable

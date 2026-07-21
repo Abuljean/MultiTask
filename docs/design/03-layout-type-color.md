@@ -112,8 +112,8 @@ text-on-accent       = #FFFFFF
 border-subtle        = #E8E5DE
 border-emphasis      = same as accent
 
-accent               = #3D4A7A   ← DESATURATED INDIGO, placeholder. See below.
-accent-muted         = #3D4A7A at 12% alpha
+accent               = #4954C7   ← INDIGO (2026-07-21; was #3D4A7A, too dark/mushy on white). White text ≈6.3:1.
+accent-muted         = #4954C7 at 12% alpha
 
 status-ongoing-bg    = #F0FDF4   ← carried from web
 status-ongoing-accent= #16A34A

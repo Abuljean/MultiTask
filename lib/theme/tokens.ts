@@ -97,8 +97,11 @@ export const lightColors: ThemeColors = {
   textTertiary: '#75706A',
   textOnAccent: '#FFFFFF',
   borderSubtle: '#E8E5DE',
-  accent: '#3D4A7A',
-  accentMuted: 'rgba(61, 74, 122, 0.12)',
+  // Cleaner, brighter indigo (2026-07-21) — the old #3D4A7A was too dark and
+  // desaturated on white ("mushy" filled buttons). White text = ~6.3:1, clear
+  // of 4.5. Dark-mode accent is unchanged (already lightened + approved).
+  accent: '#4954C7',
+  accentMuted: 'rgba(73, 84, 199, 0.12)',
   statusOngoingBg: '#F0FDF4', // carried from the web app
   statusOngoingAccent: '#16A34A',
   statusUrgentBg: '#FFF7ED',

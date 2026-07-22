@@ -368,7 +368,7 @@ func deepLink(for entry: TaskEntry) -> URL? {
   if let top = entry.snapshot?.today.first {
     return URL(string: "multitask:///task/\(top.id)")
   }
-  if let ev = entry.snapshot?.events.first {
+  if let ev = entry.snapshot?.events?.first {
     return URL(string: "multitask:///event/\(ev.id)")
   }
   return URL(string: "multitask:///")

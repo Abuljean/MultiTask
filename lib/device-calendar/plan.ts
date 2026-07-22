@@ -42,7 +42,12 @@ export function planCalendarEvents(
 ): PlannedCalendarEvent[] {
   const windowStart = new Date(now);
   windowStart.setHours(0, 0, 0, 0);
-  const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+  // Calendar-day arithmetic, not fixed 24h blocks — DST crossings would
+  // shift the boundary and drop tasks late on the cutoff day (wall-clock
+  // discipline, CodeRabbit 2026-07-22).
+  const windowEnd = new Date(windowStart);
+  windowEnd.setDate(windowEnd.getDate() + windowDays);
+  windowEnd.setHours(23, 59, 59, 999);
 
   const planned: PlannedCalendarEvent[] = [];
   for (const task of tasks) {

@@ -81,6 +81,7 @@ async function doInit(): Promise<boolean> {
     // triggering a clean re-init.
     instance = null;
     connector = null;
+    droppedCounter = null;
     console.warn('PowerSync init failed; staying in online mode', error);
     return false;
   }
@@ -96,6 +97,9 @@ export async function teardownSync(): Promise<void> {
   connector = null;
   db = null;
   initPromise = null;
+  // Without this, droppedOpCount() reports the PREVIOUS session's drops
+  // after sign-out/account switch instead of the documented 0.
+  droppedCounter = null;
   if (current) {
     try {
       await current.disconnectAndClear();

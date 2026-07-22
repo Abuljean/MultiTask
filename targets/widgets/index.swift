@@ -26,7 +26,9 @@ struct WidgetTaskItem: Decodable, Identifiable {
   let title: String
   let dueLabel: String
   let status: String
-  let done: Bool
+  // Optional so a snapshot written by the PREVIOUS app build (no `done`
+  // field) still decodes during the upgrade window instead of blanking.
+  let done: Bool?
 }
 
 struct WidgetEventItem: Decodable, Identifiable {
@@ -46,7 +48,8 @@ struct WidgetFallback: Decodable {
 struct SnapshotPayload: Decodable {
   let dateLabel: String
   let today: [WidgetTaskItem]
-  let events: [WidgetEventItem]
+  // Optional for the same upgrade-window reason as WidgetTaskItem.done.
+  let events: [WidgetEventItem]?
   let openCount: Int
   let fallback: WidgetFallback?
 }
@@ -151,7 +154,7 @@ struct TaskRow: View {
   let task: WidgetTaskItem
   let pendingMap: [Int: Bool]
 
-  var effectiveDone: Bool { pendingMap[task.id] ?? task.done }
+  var effectiveDone: Bool { pendingMap[task.id] ?? task.done ?? false }
 
   var body: some View {
     HStack(spacing: 8) {

@@ -5,7 +5,7 @@
 // same shell pattern as quick-add.
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { readAsStringAsync } from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +47,8 @@ export default function ImportEventsScreen() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<CsvImportResult | null>(null);
   const [defaultColor, setDefaultColor] = useState<string | null>(null);
+  // The parse whose EVENTS leg already inserted (partial-failure retry guard).
+  const eventsImportedFor = useRef<CsvImportResult | null>(null);
 
   // Events vs tasks. Default 'events' (the handoff behavior); `modeExplicit`
   // tracks whether the user actually engaged the selector, so we know whether
@@ -148,12 +150,16 @@ export default function ImportEventsScreen() {
     const taskInputs = parsed.events.filter((_, i) => asTasks.has(i)).map(eventToNewTask);
     const eventInputs = parsed.events.filter((_, i) => !asTasks.has(i));
     try {
-      if (eventInputs.length > 0) {
+      // A mixed import runs as two inserts. If the events leg lands but the
+      // tasks leg fails, retrying must NOT re-insert the events — remember
+      // which parse already had its events written (cleared on new file).
+      if (eventInputs.length > 0 && eventsImportedFor.current !== parsed) {
         await importEvents.mutateAsync({
           events: eventInputs,
           source: fileName ?? 'import.csv',
           defaultColor,
         });
+        eventsImportedFor.current = parsed;
       }
       if (taskInputs.length > 0) {
         await importTasks.mutateAsync({ tasks: taskInputs });
@@ -161,7 +167,12 @@ export default function ImportEventsScreen() {
       toast.show({ message: importedMessage(eventInputs.length, taskInputs.length) });
       close();
     } catch (error) {
-      toast.show({ message: `Import failed: ${(error as Error).message}` });
+      const eventsAlreadyIn = eventsImportedFor.current === parsed && eventInputs.length > 0;
+      toast.show({
+        message: eventsAlreadyIn
+          ? `Events imported, but the tasks failed: ${(error as Error).message}. Import again to retry just the tasks.`
+          : `Import failed: ${(error as Error).message}`,
+      });
     }
   }
 

@@ -74,12 +74,12 @@ function composite(top: Rgb, alpha: number, bottom: Rgb): Rgb {
 const LIGHT_SURFACE: Rgb = { r: 1, g: 1, b: 1 }; // #FFFFFF
 const DARK_SURFACE: Rgb = { r: 0x1e / 255, g: 0x1f / 255, b: 0x23 / 255 }; // #1E1F23
 
-/** Darken (light mode) / lighten (dark mode) until ≥4.5:1 on `background`. */
-function ensureContrast(text: Hsl, background: Rgb, isDark: boolean): Hsl {
+/** Darken (light mode) / lighten (dark mode) until ≥`minRatio` on `background`. */
+function ensureContrast(text: Hsl, background: Rgb, isDark: boolean, minRatio = 4.5): Hsl {
   const step = isDark ? 0.02 : -0.02;
   let candidate = { ...text };
   for (let i = 0; i < 45; i++) {
-    if (contrastRatio(hslToRgb(candidate), background) >= 4.5) return candidate;
+    if (contrastRatio(hslToRgb(candidate), background) >= minRatio) return candidate;
     const nextL = candidate.l + step;
     if (nextL <= 0.03 || nextL >= 0.98) break;
     candidate = { ...candidate, l: nextL };
@@ -115,12 +115,12 @@ export function pillColors(userColor: string, isDark: boolean): PillPalette {
  *  guaranteed against the card surface. Event cards use this for their time
  *  text: a CSV can legally say color=#fef08a (pale yellow), which is fine as
  *  a border but illegible as text on a light surface. */
-export function readableTextColor(userColor: string, isDark: boolean): string {
+export function readableTextColor(userColor: string, isDark: boolean, minRatio = 4.5): string {
   const hsl = hexToHsl(userColor) ?? { h: 0, s: 0, l: 0.5 };
   const seed: Hsl = {
     h: hsl.h,
     s: Math.min(1, Math.max(hsl.s, 0.45)),
     l: isDark ? Math.max(hsl.l, 0.7) : Math.min(hsl.l, 0.32),
   };
-  return hslCss(ensureContrast(seed, isDark ? DARK_SURFACE : LIGHT_SURFACE, isDark));
+  return hslCss(ensureContrast(seed, isDark ? DARK_SURFACE : LIGHT_SURFACE, isDark, minRatio));
 }

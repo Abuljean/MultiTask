@@ -29,6 +29,7 @@ import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 import { useTasks } from '@/lib/tasks/use-tasks';
 import { CONTENT_MAX_WIDTH, pageContent } from '@/lib/theme/layout';
+import { readableTextColor } from '@/lib/theme/pill-colors';
 import { useTheme } from '@/lib/theme/use-theme';
 
 const MONTH_NAMES = [
@@ -70,7 +71,7 @@ type MonthItem = { year: number; month: number };
 export default function CalendarScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, space, type } = useTheme();
+  const { colors, space, type, isDark } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const { data: tasks } = useTasks();
   const urgencyThresholdHours = useUrgencyThreshold();
@@ -289,10 +290,23 @@ export default function CalendarScreen() {
               <View
                 key={`e-${e.id}`}
                 style={[styles.bar, styles.eventBar, { borderColor: e.color ?? colors.statusEventAccent }]}>
+                {/* Border keeps the raw event color; the TEXT is pushed to a
+                    much darker shade of the same hue in light mode (7:1 —
+                    developer request 2026-07-22: pale bar text was hard to
+                    read on white). Dark mode keeps the 4.5:1 lightened text. */}
                 <Text
                   numberOfLines={1}
                   maxFontSizeMultiplier={1.2}
-                  style={[styles.barText, { color: e.color ?? colors.statusEventAccent }]}>
+                  style={[
+                    styles.barText,
+                    {
+                      color: readableTextColor(
+                        e.color ?? colors.statusEventAccent,
+                        isDark,
+                        isDark ? 4.5 : 7
+                      ),
+                    },
+                  ]}>
                   {e.title}
                 </Text>
               </View>
@@ -325,17 +339,27 @@ export default function CalendarScreen() {
         ) : (
           <View style={styles.dotRow}>
             {/* Events are visually distinct: hollow ring vs solid task dots
-                (ring takes the day's first event color). */}
+                (ring takes the day's first event color). One ring/3 dots
+                can't say HOW MANY (developer request 2026-07-22) — tiny mono
+                counts sit beside them: blue after the ring when 2+ events,
+                grey overflow count after the dots when 4+ tasks. */}
             {dayEvents && dayEvents.length > 0 && (
               <View
                 style={[styles.eventRing, { borderColor: dayEvents[0].color ?? colors.statusEventAccent }]}
               />
             )}
+            {(dayEvents?.length ?? 0) > 1 && (
+              <Text style={[styles.dotCount, { color: colors.statusEventAccent }]}>
+                {dayEvents?.length}
+              </Text>
+            )}
             {dayTasks.slice(0, 3).map((t) => (
               <View key={t.id} style={[styles.dot, { backgroundColor: statusDotColor(t) }]} />
             ))}
             {dayTasks.length > 3 && (
-              <Text style={{ fontSize: 9, lineHeight: 9, color: colors.textTertiary }}>+</Text>
+              <Text style={[styles.dotCount, { color: colors.textTertiary }]}>
+                +{dayTasks.length - 3}
+              </Text>
             )}
           </View>
         )}
@@ -590,6 +614,7 @@ const styles = StyleSheet.create({
     minHeight: 8,
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
+  dotCount: { fontSize: 9, lineHeight: 10, fontWeight: '600' },
   eventRing: { width: 7, height: 7, borderRadius: 4, borderWidth: 1.5 },
   monthGrid: {
     flexDirection: 'row',

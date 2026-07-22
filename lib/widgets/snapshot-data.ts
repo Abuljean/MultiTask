@@ -33,7 +33,7 @@ export type WidgetEvent = {
 
 export type WidgetFallback =
   | { kind: 'urgent'; count: number; title: string; dueLabel: string }
-  | { kind: 'nextDay'; dayLabel: string; count: number; title: string }
+  | { kind: 'week'; label: string; count: number; title: string; dueLabel: string }
   | { kind: 'clear' };
 
 export type WidgetSnapshot = {
@@ -129,22 +129,47 @@ export function buildWidgetSnapshot(
     today,
     events: widgetEvents,
     openCount: openToday.length,
-    fallback: openToday.length === 0 ? computeFallback(dated, now, urgencyThresholdHours) : null,
+    fallback:
+      openToday.length === 0 ? computeFallback(dated, events, now, urgencyThresholdHours) : null,
     generatedAt: now.toISOString(),
   };
 }
 
-function computeFallback(dated: Task[], now: Date, urgencyThresholdHours: number): WidgetFallback {
+/** Calendar-week index relative to now (Sunday-start, matching the calendar
+ *  view): 0 = this week, 1 = next week, 2 = the week after… */
+function weekIndex(date: Date, now: Date): number {
+  const startOfWeek = new Date(now);
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+  const day = new Date(date);
+  day.setHours(0, 0, 0, 0);
+  return Math.floor((day.getTime() - startOfWeek.getTime()) / (7 * 24 * 60 * 60 * 1000));
+}
+
+function weekLabel(index: number): string {
+  if (index <= 0) return 'This week';
+  if (index === 1) return 'Next week';
+  return `In ${index} weeks`;
+}
+
+function computeFallback(
+  dated: Task[],
+  events: CalendarEvent[],
+  now: Date,
+  urgencyThresholdHours: number
+): WidgetFallback {
   const endOfToday = new Date(now);
   endOfToday.setHours(23, 59, 59, 999);
-  const upcoming = dated
+
+  const upcomingTasks = dated
     .filter((t) => !t.isCompleted && (t.dueDate as Date) > endOfToday)
     .sort((a, b) => (a.dueDate as Date).getTime() - (b.dueDate as Date).getTime() || a.id - b.id);
 
-  if (upcoming.length === 0) return { kind: 'clear' };
-
+  // Urgent upcoming TASKS win the small widget (events have no urgency).
   const thresholdMs = urgencyThresholdHours * 60 * 60 * 1000;
-  const urgent = upcoming.filter((t) => (t.dueDate as Date).getTime() - now.getTime() <= thresholdMs);
+  const urgent = upcomingTasks.filter(
+    (t) => (t.dueDate as Date).getTime() - now.getTime() <= thresholdMs
+  );
   if (urgent.length > 0) {
     return {
       kind: 'urgent',
@@ -154,13 +179,25 @@ function computeFallback(dated: Task[], now: Date, urgencyThresholdHours: number
     };
   }
 
-  // The next day that has tasks — "all of the ones on the 25th".
-  const firstKey = localDateKey(upcoming[0].dueDate as Date);
-  const sameDayTasks = upcoming.filter((t) => localDateKey(t.dueDate as Date) === firstKey);
+  // Otherwise group everything ahead — tasks AND events — by week, and show
+  // the nearest non-empty bucket ("Next week", "In 2 weeks", …). This is why
+  // the widget no longer reads "0 due" while real work is coming up.
+  const upcoming = [
+    ...upcomingTasks.map((t) => ({ due: t.dueDate as Date, title: t.title })),
+    ...events
+      .filter((e) => e.start > endOfToday)
+      .map((e) => ({ due: e.start, title: e.title })),
+  ].sort((a, b) => a.due.getTime() - b.due.getTime());
+
+  if (upcoming.length === 0) return { kind: 'clear' };
+
+  const bucket = weekIndex(upcoming[0].due, now);
+  const sameWeek = upcoming.filter((u) => weekIndex(u.due, now) === bucket);
   return {
-    kind: 'nextDay',
-    dayLabel: dayLabel(upcoming[0].dueDate as Date),
-    count: sameDayTasks.length,
+    kind: 'week',
+    label: weekLabel(bucket),
+    count: sameWeek.length,
     title: upcoming[0].title,
+    dueLabel: dayLabel(upcoming[0].due),
   };
 }

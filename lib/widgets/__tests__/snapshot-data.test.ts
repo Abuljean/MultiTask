@@ -129,7 +129,7 @@ describe('buildWidgetSnapshot — small-widget fallback', () => {
     });
   });
 
-  it('falls back to the next day with tasks when none are urgent', () => {
+  it('groups upcoming by week once the urgent ones are past — nearest bucket', () => {
     const s = buildWidgetSnapshot(
       [
         task({ id: 1, title: 'A on the 25th', dueDate: new Date('2026-07-25T09:00:00') }),
@@ -140,12 +140,25 @@ describe('buildWidgetSnapshot — small-widget fallback', () => {
       NOW,
       48
     );
+    // Jul 25 is next week (idx 1); Jul 27 is the week after. Nearest = next week.
     expect(s.fallback).toEqual({
-      kind: 'nextDay',
-      dayLabel: expect.stringMatching(/Sat, Jul 25/),
+      kind: 'week',
+      label: 'Next week',
       count: 2,
       title: 'A on the 25th',
+      dueLabel: expect.stringMatching(/Sat, Jul 25/),
     });
+  });
+
+  it('counts upcoming events in the week bucket, not just tasks', () => {
+    const s = buildWidgetSnapshot(
+      [task({ id: 1, title: 'Task 25th', dueDate: new Date('2026-07-25T09:00:00') })],
+      [event({ id: 9, title: 'Concert 24th', start: new Date('2026-07-24T19:00:00') })],
+      NOW,
+      48
+    );
+    // Both fall in the same week; the earliest (the event) titles it.
+    expect(s.fallback).toMatchObject({ kind: 'week', label: 'Next week', count: 2, title: 'Concert 24th' });
   });
 
   it('reports clear when there is nothing ahead', () => {

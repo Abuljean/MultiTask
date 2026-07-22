@@ -40,7 +40,7 @@ struct WidgetFallback: Decodable {
   let count: Int?
   let title: String?
   let dueLabel: String?
-  let dayLabel: String?
+  let label: String?
 }
 
 struct SnapshotPayload: Decodable {
@@ -216,15 +216,18 @@ struct FallbackView: View {
             Text(d).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
           }
         }
-      case "nextDay":
+      case "week":
         VStack(alignment: .leading, spacing: 2) {
-          Text("Next: \(f.dayLabel ?? "")")
+          Text(f.label ?? "Upcoming")
             .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
           if let t = f.title {
             Text(t).font(.system(size: 13, weight: .semibold)).lineLimit(1)
           }
+          if let d = f.dueLabel {
+            Text(d).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+          }
           if let c = f.count, c > 1 {
-            Text("+\(c - 1) more that day").font(.system(size: 10)).foregroundStyle(.secondary)
+            Text("+\(c - 1) more this week").font(.system(size: 10)).foregroundStyle(.secondary)
           }
         }
       default:
@@ -252,11 +255,21 @@ struct MultitaskWidgetView: View {
   var body: some View {
     switch family {
     case .accessoryCircular:
+      // Show today's due count; when nothing's due, surface what's coming up
+      // ("N soon") instead of a misleading "0 due", else an all-clear check.
       ZStack {
         AccessoryWidgetBackground()
         VStack(spacing: 0) {
-          Text("\(openCount)").font(.system(size: 20, weight: .bold, design: .rounded))
-          Text("due").font(.system(size: 9)).foregroundStyle(.secondary)
+          if openCount > 0 {
+            Text("\(openCount)").font(.system(size: 20, weight: .bold, design: .rounded))
+            Text("due").font(.system(size: 9)).foregroundStyle(.secondary)
+          } else if let count = snapshot?.fallback?.count, count > 0 {
+            Text("\(count)").font(.system(size: 20, weight: .bold, design: .rounded))
+            Text("soon").font(.system(size: 9)).foregroundStyle(.secondary)
+          } else {
+            Image(systemName: "checkmark").font(.system(size: 16, weight: .semibold))
+              .foregroundStyle(.secondary)
+          }
         }
       }
     case .accessoryRectangular:

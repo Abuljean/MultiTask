@@ -35,6 +35,7 @@ const MAPPING = {
   'tray.and.arrow.down': 'download',
   eye: 'visibility',
   'eye.slash': 'visibility-off',
+  circle: 'radio-button-unchecked',
 } as IconMapping;
 
 /**

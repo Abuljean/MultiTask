@@ -10,12 +10,13 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { DayTimeline } from '@/components/day-timeline';
 import { EventCard } from '@/components/event-card';
-import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTaskActions } from '@/hooks/use-task-actions';
+import { useToday } from '@/hooks/use-today';
+import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { useEvents } from '@/lib/events/use-events';
-import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
 import { useTasks } from '@/lib/tasks/use-tasks';
 import { CONTENT_MAX_WIDTH, pageContent } from '@/lib/theme/layout';
@@ -27,7 +28,9 @@ export default function DayScreen() {
   const { date, ax, ay } = useLocalSearchParams<{ date: string; ax?: string; ay?: string }>();
   const { colors, space, type } = useTheme();
   const { data: tasks } = useTasks();
-  const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
+  const { handleSwipeRight } = useTaskActions();
+  const urgencyThresholdHours = useUrgencyThreshold();
+  const today = useToday();
 
   const day = useMemo(() => parseDateKey(date ?? localDateKey(new Date())), [date]);
 
@@ -177,10 +180,12 @@ export default function DayScreen() {
               scrollEventThrottle={16}
               contentContainerStyle={{ padding: space.s4, paddingTop: 0, gap: space.s3, flexGrow: 1 }}
               showsVerticalScrollIndicator={false}>
-              {dayEvents.length > 0 && (
+              {dayTasks.length === 0 && dayEvents.length === 0 ? (
+                <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
+              ) : (
                 <>
-                  <Text style={[type.h2, { color: colors.textSecondary }]}>Schedule</Text>
-                  {dayEvents.map((event) => (
+                  {/* All-day events have no place on an hour axis — strip on top. */}
+                  {dayEvents.filter((e) => e.allDay).map((event) => (
                     <EventCard
                       key={event.id}
                       event={event}
@@ -188,28 +193,18 @@ export default function DayScreen() {
                       showNotes={isWide}
                     />
                   ))}
-                  {dayTasks.length > 0 && (
-                    <Text style={[type.h2, { color: colors.textSecondary, marginTop: space.s2 }]}>Tasks</Text>
-                  )}
-                </>
-              )}
-              {dayTasks.length === 0 ? (
-                dayEvents.length === 0 ? (
-                  <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
-                ) : null
-              ) : (
-                dayTasks.map((task) => (
-                  <SwipeableTaskCard
-                    key={task.id}
-                    task={task}
-                    onSwipeRight={handleSwipeRight}
-                    onSwipeLeft={handleSwipeLeft}
-                    onPress={(t) => router.push(`/task/${t.id}`)}
-                    enterFrom={getEnterFrom(task.id)}
-                    onEntered={clearEnterMark}
-                    showDescription={isWide}
+                  {/* The timeline: events (left, sized by duration) + tasks
+                      (right, uniform rows, one-tap complete). */}
+                  <DayTimeline
+                    events={dayEvents.filter((e) => !e.allDay)}
+                    tasks={dayTasks}
+                    urgencyThresholdHours={urgencyThresholdHours}
+                    now={date === localDateKey(today) ? new Date() : null}
+                    onPressEvent={(e) => router.push(`/event/${e.id}`)}
+                    onPressTask={(t) => router.push(`/task/${t.id}`)}
+                    onToggleTask={handleSwipeRight}
                   />
-                ))
+                </>
               )}
               {/* The leftover space below the last card is also an exit
                   (web/desktop, matching the side gutters). */}

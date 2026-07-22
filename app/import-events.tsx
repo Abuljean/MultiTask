@@ -103,7 +103,11 @@ export default function ImportEventsScreen() {
       return;
     }
     try {
-      const text = await readAsStringAsync(asset.uri);
+      // Web: the picker hands us a File object — expo-file-system can't read
+      // web blob URIs at all (import on web ALWAYS failed before this branch;
+      // reported with a real schedule CSV 2026-07-22). Native: read the
+      // cache copy as before.
+      const text = asset.file ? await asset.file.text() : await readAsStringAsync(asset.uri);
       setFileName(asset.name);
       setParsed(csvToEvents(text));
       // Fresh file → fresh choice.

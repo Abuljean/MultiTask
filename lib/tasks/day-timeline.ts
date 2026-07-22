@@ -1,7 +1,11 @@
-// Pure layout engine for the day page's timeline (developer request
-// 2026-07-22): events on the LEFT as duration-sized blocks, tasks on the
-// RIGHT as fixed-height rows anchored to their due time. All geometry is
-// computed here so it's unit-testable; the screen just renders rectangles.
+// Pure layout engine for the day page's timeline (developer design
+// 2026-07-22, v2): on WIDE screens the timeline carries EVENTS ONLY (tasks
+// live beside it as normal cards); on PHONES events and tasks share one
+// full-width lane. Long empty stretches collapse into a fixed-height band
+// ("N hr") instead of rendering hours of dead space — the piecewise axis is
+// what keeps a sparse day compact without lying about durations. All
+// geometry is computed here so it's unit-testable; the screen renders
+// rectangles.
 
 export type TimelineEventInput = {
   id: number;
@@ -15,30 +19,48 @@ export type TimelineTaskInput = {
   due: Date;
 };
 
+export type TimelineMode = 'merged' | 'eventsOnly';
+
 export type TimelineConfig = {
   pxPerHour: number;
   /** Fixed height of a task row — tasks stay uniform and neat. */
   taskHeight: number;
-  /** Vertical gap when a task row is pushed below a colliding one. */
+  /** Vertical gap when a task row is pushed below a colliding block. */
   taskGap: number;
   /** Floor for very short events so their title stays readable. */
   minEventHeight: number;
+  /** Empty stretches at least this long compress into a band. */
+  gapThresholdHours: number;
+  /** Rendered height of a compressed band. */
+  gapBandPx: number;
 };
 
 export type TimelineLayout = {
-  startHour: number;
-  endHour: number;
   height: number;
   hours: { hour: number; top: number; label: string }[];
-  events: { id: number; top: number; height: number; col: number; cols: number }[];
-  tasks: { id: number; top: number }[];
+  /** Compressed empty stretches — render as a small "N hr" band. */
+  gaps: { top: number; height: number; hours: number }[];
+  /** `shared`: squeezed left because a task row runs alongside (merged mode). */
+  events: { id: number; top: number; height: number; col: number; cols: number; shared: boolean }[];
+  /** `narrow`: right-aligned beside an event instead of full width. */
+  tasks: { id: number; top: number; narrow: boolean }[];
   /** All-day events don't belong on an hour axis — strip above the timeline. */
   allDayIds: number[];
+  /** Y of the current time, when provided and inside the axis. */
+  nowTop: number | null;
 };
 
 const DEFAULT_EVENT_MINUTES = 30; // endless events get a visual half-hour
-const EMPTY_DAY_START = 8;
-const EMPTY_DAY_END = 18;
+
+const EMPTY: TimelineLayout = {
+  height: 0,
+  hours: [],
+  gaps: [],
+  events: [],
+  tasks: [],
+  allDayIds: [],
+  nowTop: null,
+};
 
 function hourOf(date: Date): number {
   return date.getHours() + date.getMinutes() / 60;
@@ -54,7 +76,9 @@ export function hourLabel(hour: number): string {
 export function layoutDayTimeline(
   events: TimelineEventInput[],
   tasks: TimelineTaskInput[],
-  config: TimelineConfig
+  mode: TimelineMode,
+  config: TimelineConfig,
+  nowHour?: number | null
 ): TimelineLayout {
   const allDayIds = events.filter((e) => e.allDay).map((e) => e.id);
   const timed = events
@@ -65,26 +89,80 @@ export function layoutDayTimeline(
       return { id: e.id, startH, endH };
     })
     .sort((a, b) => a.startH - b.startH || a.endH - b.endH || a.id - b.id);
-  const dated = tasks
-    .map((t) => ({ id: t.id, dueH: hourOf(t.due) }))
-    .sort((a, b) => a.dueH - b.dueH || a.id - b.id);
+  const dated =
+    mode === 'merged'
+      ? tasks.map((t) => ({ id: t.id, dueH: hourOf(t.due) })).sort((a, b) => a.dueH - b.dueH || a.id - b.id)
+      : [];
 
-  // Whole-hour range covering everything (empty day = business hours).
-  const starts = [...timed.map((e) => e.startH), ...dated.map((t) => t.dueH)];
-  const ends = [...timed.map((e) => e.endH), ...dated.map((t) => t.dueH)];
-  const startHour =
-    starts.length === 0 ? EMPTY_DAY_START : Math.min(EMPTY_DAY_START, Math.floor(Math.min(...starts)));
-  const endHour =
-    ends.length === 0 ? EMPTY_DAY_END : Math.max(EMPTY_DAY_END, Math.min(24, Math.ceil(Math.max(...ends))));
-  const toY = (hour: number) => (hour - startHour) * config.pxPerHour;
-  const height = toY(endHour);
+  if (timed.length === 0 && dated.length === 0) return { ...EMPTY, allDayIds };
+
+  // Busy coverage. A task row occupies real pixels, so for axis/gap purposes
+  // it "uses" the hours its row will cover.
+  const taskBusyHours = config.taskHeight / config.pxPerHour;
+  const busy: { s: number; e: number }[] = [
+    ...timed.map((e) => ({ s: e.startH, e: e.endH })),
+    ...dated.map((t) => ({ s: t.dueH, e: Math.min(24, t.dueH + taskBusyHours) })),
+  ].sort((a, b) => a.s - b.s);
+  const merged: { s: number; e: number }[] = [];
+  for (const b of busy) {
+    const last = merged[merged.length - 1];
+    if (last && b.s <= last.e) last.e = Math.max(last.e, b.e);
+    else merged.push({ ...b });
+  }
+
+  const axisStartH = Math.floor(merged[0].s);
+  const axisEndH = Math.max(Math.min(24, Math.ceil(merged[merged.length - 1].e)), axisStartH + 1);
+
+  // Interior free stretches (snapped to whole hours) that are long enough
+  // become compressed segments.
+  const compressed: { s: number; e: number }[] = [];
+  for (let i = 0; i < merged.length - 1; i++) {
+    const freeStart = Math.ceil(merged[i].e);
+    const freeEnd = Math.floor(merged[i + 1].s);
+    if (freeEnd - freeStart >= config.gapThresholdHours) {
+      compressed.push({ s: freeStart, e: freeEnd });
+    }
+  }
+
+  // Piecewise y(t): normal segments at pxPerHour, compressed at gapBandPx.
+  type Segment = { s: number; e: number; topPx: number; pxPerHour: number; heightPx: number };
+  const segments: Segment[] = [];
+  let cursorH = axisStartH;
+  let cursorPx = 0;
+  const pushSegment = (s: number, e: number, isGap: boolean) => {
+    if (e <= s) return;
+    const heightPx = isGap ? config.gapBandPx : (e - s) * config.pxPerHour;
+    segments.push({ s, e, topPx: cursorPx, pxPerHour: isGap ? config.gapBandPx / (e - s) : config.pxPerHour, heightPx });
+    cursorPx += heightPx;
+  };
+  for (const gap of compressed) {
+    pushSegment(cursorH, gap.s, false);
+    pushSegment(gap.s, gap.e, true);
+    cursorH = gap.e;
+  }
+  pushSegment(cursorH, axisEndH, false);
+  let height = cursorPx;
+
+  const yOf = (hour: number): number => {
+    const clamped = Math.min(Math.max(hour, axisStartH), axisEndH);
+    for (const seg of segments) {
+      if (clamped <= seg.e) return seg.topPx + (clamped - seg.s) * seg.pxPerHour;
+    }
+    return height;
+  };
+
+  const gaps = compressed.map((g) => ({
+    top: yOf(g.s),
+    height: config.gapBandPx,
+    hours: g.e - g.s,
+  }));
 
   // Overlapping events split into side-by-side columns (classic day-view
-  // algorithm): greedy column assignment inside each overlap cluster, and
-  // every member of a cluster shares the cluster's column count.
+  // algorithm): greedy column assignment inside each overlap cluster; every
+  // member of a cluster shares the cluster's column count.
   type Placed = { id: number; startH: number; endH: number; col: number; cluster: number };
   const placed: Placed[] = [];
-  const columnEnds: number[] = []; // per-column latest endH, current cluster only
+  const columnEnds: number[] = [];
   let cluster = 0;
   let clusterEnd = -Infinity;
   const clusterCols = new Map<number, number>();
@@ -107,27 +185,47 @@ export function layoutDayTimeline(
   }
   const eventBlocks = placed.map((e) => ({
     id: e.id,
-    top: toY(e.startH),
-    height: Math.max(config.minEventHeight, toY(e.endH) - toY(e.startH)),
+    top: yOf(e.startH),
+    height: Math.max(config.minEventHeight, yOf(e.endH) - yOf(e.startH)),
     col: e.col,
     cols: clusterCols.get(e.cluster) ?? 1,
+    shared: false,
   }));
 
-  // Tasks: anchored to their due time, pushed down just enough to never
-  // overlap the previous row (uniform height keeps the column tidy).
-  const taskBlocks: { id: number; top: number }[] = [];
+  // Merged mode: a task stays AT ITS TIME (pushing it below events cascaded
+  // a 9 AM task past a busy morning — misleading). It only stacks below
+  // earlier tasks; when its row runs alongside an event block, the two share
+  // the width instead (task `narrow` right, event `shared` left).
+  const taskBlocks: { id: number; top: number; narrow: boolean }[] = [];
   let prevBottom = -Infinity;
   for (const t of dated) {
-    const ideal = Math.min(toY(t.dueH), height - config.taskHeight);
-    const top = Math.max(ideal, prevBottom);
-    taskBlocks.push({ id: t.id, top });
+    const top = Math.max(yOf(t.dueH), prevBottom);
+    taskBlocks.push({ id: t.id, top, narrow: false });
     prevBottom = top + config.taskHeight + config.taskGap;
   }
-
-  const hours: TimelineLayout['hours'] = [];
-  for (let h = startHour; h <= endHour; h++) {
-    hours.push({ hour: h, top: toY(h), label: hourLabel(h) });
+  for (const t of taskBlocks) {
+    for (const e of eventBlocks) {
+      if (t.top < e.top + e.height && t.top + config.taskHeight > e.top) {
+        t.narrow = true;
+        e.shared = true;
+      }
+    }
+  }
+  if (taskBlocks.length > 0) {
+    const lastBottom = taskBlocks[taskBlocks.length - 1].top + config.taskHeight;
+    height = Math.max(height, lastBottom);
   }
 
-  return { startHour, endHour, height, hours, events: eventBlocks, tasks: taskBlocks, allDayIds };
+  // Hour marks: whole hours outside compressed interiors (band edges kept —
+  // they label where the gap starts and where time resumes).
+  const hours: TimelineLayout['hours'] = [];
+  for (let h = axisStartH; h <= axisEndH; h++) {
+    const insideGap = compressed.some((g) => h > g.s && h < g.e);
+    if (!insideGap) hours.push({ hour: h, top: yOf(h), label: hourLabel(h) });
+  }
+
+  const nowTop =
+    nowHour != null && nowHour >= axisStartH && nowHour <= axisEndH ? yOf(nowHour) : null;
+
+  return { height, hours, gaps, events: eventBlocks, tasks: taskBlocks, allDayIds, nowTop };
 }

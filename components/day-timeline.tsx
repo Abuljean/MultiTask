@@ -1,60 +1,77 @@
-// The day page's timeline body: hour ruler down the left edge, EVENTS as
-// duration-sized blocks in the left lane, TASKS as uniform rows in the right
-// lane anchored to their due time (one-tap complete circle — a swipe in a
-// narrow lane fights the vertical scroll). Geometry comes entirely from the
-// tested layout engine (lib/tasks/day-timeline.ts); this file renders
-// rectangles and wires presses.
+// The day page's timeline. Two variants (developer design 2026-07-22 v2):
+//   - 'eventsOnly' (wide screens): the left pane — events as duration-sized
+//     blocks on the hour axis; tasks live BESIDE the timeline as normal cards.
+//   - 'merged' (phones): one full-width lane — event blocks and uniform task
+//     rows interleaved by time, with a one-tap complete circle per task.
+// Long empty stretches arrive from the engine as compressed "N hr" bands.
+// Geometry comes entirely from the tested layout engine
+// (lib/tasks/day-timeline.ts); this file renders rectangles and wires presses.
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { CalendarEvent } from '@/lib/events/use-events';
-import { layoutDayTimeline, type TimelineConfig } from '@/lib/tasks/day-timeline';
+import {
+  layoutDayTimeline,
+  type TimelineConfig,
+  type TimelineMode,
+} from '@/lib/tasks/day-timeline';
 import { deriveStatus, type TaskStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 import { readableTextColor } from '@/lib/theme/pill-colors';
 import { useTheme } from '@/lib/theme/use-theme';
 
-const CONFIG: TimelineConfig = { pxPerHour: 64, taskHeight: 46, taskGap: 6, minEventHeight: 28 };
+const CONFIG: TimelineConfig = {
+  pxPerHour: 64,
+  taskHeight: 56,
+  taskGap: 6,
+  minEventHeight: 30,
+  gapThresholdHours: 2,
+  gapBandPx: 44,
+};
 const RULER_WIDTH = 52;
 
 function timeRange(event: CalendarEvent): string {
-  const fmt = (d: Date) =>
-    d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const fmt = (d: Date) => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return event.end ? `${fmt(event.start)} – ${fmt(event.end)}` : fmt(event.start);
 }
 
 type Props = {
+  variant: TimelineMode;
   events: CalendarEvent[];
-  tasks: Task[];
-  urgencyThresholdHours: number;
+  /** Only used by the 'merged' variant. */
+  tasks?: Task[];
+  urgencyThresholdHours?: number;
   /** Local now — only passed when this page is showing TODAY (draws the now line). */
   now?: Date | null;
   onPressEvent: (event: CalendarEvent) => void;
-  onPressTask: (task: Task) => void;
+  onPressTask?: (task: Task) => void;
   /** The complete/restore toggle (same handler as a swipe-right). */
-  onToggleTask: (task: Task) => void;
+  onToggleTask?: (task: Task) => void;
 };
 
 export function DayTimeline({
+  variant,
   events,
-  tasks,
-  urgencyThresholdHours,
+  tasks = [],
+  urgencyThresholdHours = 48,
   now,
   onPressEvent,
   onPressTask,
   onToggleTask,
 }: Props) {
-  const { colors, space, radius, type, monoFont, isDark } = useTheme();
+  const { colors, radius, type, monoFont, isDark } = useTheme();
 
   const layout = useMemo(
     () =>
       layoutDayTimeline(
         events.map((e) => ({ id: e.id, start: e.start, end: e.end, allDay: e.allDay })),
         tasks.filter((t) => t.dueDate).map((t) => ({ id: t.id, due: t.dueDate as Date })),
-        CONFIG
+        variant,
+        CONFIG,
+        now ? now.getHours() + now.getMinutes() / 60 : null
       ),
-    [events, tasks]
+    [events, tasks, variant, now]
   );
 
   const eventById = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
@@ -69,14 +86,11 @@ export function DayTimeline({
           ? colors.statusOngoingAccent
           : colors.textTertiary;
 
-  const nowTop =
-    now != null
-      ? (now.getHours() + now.getMinutes() / 60 - layout.startHour) * CONFIG.pxPerHour
-      : null;
+  if (layout.height === 0) return null;
 
   return (
     <View style={{ height: layout.height }}>
-      {/* Hour ruler + hairlines across both lanes. */}
+      {/* Hour ruler + hairlines. */}
       {layout.hours.map((mark) => (
         <View key={mark.hour} pointerEvents="none" style={[styles.hourRow, { top: mark.top }]}>
           <Text
@@ -94,16 +108,39 @@ export function DayTimeline({
         </View>
       ))}
 
-      {/* Events lane (left). */}
-      <View style={[styles.lane, { left: RULER_WIDTH, right: '52%' }]}>
+      {/* Compressed empty stretches — a quiet "N hr" band. */}
+      {layout.gaps.map((gap, i) => (
+        <View
+          key={`gap-${i}`}
+          pointerEvents="none"
+          style={[styles.gapBand, { top: gap.top, height: gap.height, left: RULER_WIDTH }]}>
+          <View style={[styles.gapLine, { backgroundColor: colors.borderSubtle }]} />
+          <Text
+            style={{
+              fontFamily: monoFont,
+              fontSize: 10,
+              color: colors.textTertiary,
+              paddingHorizontal: 8,
+            }}>
+            {gap.hours} hr
+          </Text>
+          <View style={[styles.gapLine, { backgroundColor: colors.borderSubtle }]} />
+        </View>
+      ))}
+
+      {/* The single content lane: events (and, on phones, task rows). */}
+      <View style={[styles.lane, { left: RULER_WIDTH }]}>
         {layout.events.map((block) => {
           const event = eventById.get(block.id);
           if (!event) return null;
           const eventColor = event.color ?? colors.statusEventAccent;
-          const laneWidth = 100 / block.cols;
+          // When a task row runs alongside, the event cluster squeezes into
+          // the left 56% and the task takes the right (merged mode only).
+          const clusterWidth = block.shared ? 56 : 100;
+          const laneWidth = clusterWidth / block.cols;
           return (
             <Pressable
-              key={block.id}
+              key={`e-${block.id}`}
               onPress={() => onPressEvent(event)}
               accessibilityRole="button"
               accessibilityLabel={`${event.title}, ${timeRange(event)}`}
@@ -113,7 +150,7 @@ export function DayTimeline({
                 height: block.height,
                 left: `${block.col * laneWidth}%`,
                 width: `${laneWidth}%`,
-                paddingRight: block.col === block.cols - 1 ? 0 : 4,
+                paddingRight: block.col === block.cols - 1 && !block.shared ? 0 : 4,
               }}>
               <View
                 style={[
@@ -126,16 +163,16 @@ export function DayTimeline({
                   },
                 ]}>
                 <Text
-                  numberOfLines={block.height > 40 ? 2 : 1}
+                  numberOfLines={block.height > 44 ? 2 : 1}
                   style={[type.caption, { color: colors.textPrimary }]}>
                   {event.title}
                 </Text>
-                {block.height >= 40 && (
+                {block.height >= 44 && (
                   <Text
                     numberOfLines={1}
                     style={{
                       fontFamily: monoFont,
-                      fontSize: 9,
+                      fontSize: 10,
                       color: readableTextColor(eventColor, isDark),
                     }}>
                     {timeRange(event)}
@@ -145,10 +182,7 @@ export function DayTimeline({
             </Pressable>
           );
         })}
-      </View>
 
-      {/* Tasks lane (right) — uniform rows, one-tap complete. */}
-      <View style={[styles.lane, { left: '50%', right: 0 }]}>
         {layout.tasks.map((block) => {
           const task = taskById.get(block.id);
           if (!task) return null;
@@ -161,42 +195,42 @@ export function DayTimeline({
             // — nested pressables render nested <button> elements on web
             // (invalid HTML, hydration errors, and the RNW hover bug).
             <View
-              key={block.id}
+              key={`t-${block.id}`}
               style={[
                 styles.taskRow,
                 {
-                  position: 'absolute',
                   top: block.top,
-                  left: 0,
-                  right: 0,
                   height: CONFIG.taskHeight,
-                  borderRadius: radius.tight,
+                  // Alongside an event: take the right side; otherwise full width.
+                  left: block.narrow ? '58%' : 0,
+                  borderRadius: radius.button,
                   backgroundColor: colors.surfaceElevated,
                   borderColor: colors.borderSubtle,
                 },
               ]}>
               <Pressable
-                onPress={() => onPressTask(task)}
+                onPress={() => onPressTask?.(task)}
                 accessibilityRole="button"
                 accessibilityLabel={`${task.title}, ${done ? 'completed' : status}`}
                 style={styles.taskBody}>
-                <View style={[styles.taskBar, { backgroundColor: done ? colors.textTertiary : accent }]} />
-                <View style={{ flex: 1, minWidth: 0 }}>
+                <View
+                  style={[styles.taskBar, { backgroundColor: done ? colors.textTertiary : accent }]}
+                />
+                <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
                   <Text
                     numberOfLines={1}
-                    style={[
-                      type.caption,
-                      {
-                        color: done ? colors.textTertiary : colors.textPrimary,
-                        textDecorationLine: done ? 'line-through' : 'none',
-                      },
-                    ]}>
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '600',
+                      color: done ? colors.textTertiary : colors.textPrimary,
+                      textDecorationLine: done ? 'line-through' : 'none',
+                    }}>
                     {task.title}
                   </Text>
                   <Text
                     style={{
                       fontFamily: monoFont,
-                      fontSize: 9,
+                      fontSize: 10,
                       color: !done && status === 'overdue' ? accent : colors.textTertiary,
                     }}>
                     {due.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
@@ -204,14 +238,14 @@ export function DayTimeline({
                 </View>
               </Pressable>
               <Pressable
-                onPress={() => onToggleTask(task)}
+                onPress={() => onToggleTask?.(task)}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={done ? `Un-complete ${task.title}` : `Complete ${task.title}`}
                 style={styles.checkButton}>
                 <IconSymbol
                   name={done ? 'checkmark' : 'circle'}
-                  size={20}
+                  size={22}
                   color={done ? colors.textTertiary : accent}
                 />
               </Pressable>
@@ -221,8 +255,8 @@ export function DayTimeline({
       </View>
 
       {/* The now line — only when viewing today. */}
-      {nowTop != null && nowTop >= 0 && nowTop <= layout.height && (
-        <View pointerEvents="none" style={[styles.nowLine, { top: nowTop }]}>
+      {layout.nowTop != null && (
+        <View pointerEvents="none" style={[styles.nowLine, { top: layout.nowTop }]}>
           <View style={[styles.nowDot, { backgroundColor: colors.statusOverdueAccent }]} />
           <View style={[styles.nowHairline, { backgroundColor: colors.statusOverdueAccent }]} />
         </View>
@@ -242,18 +276,29 @@ const styles = StyleSheet.create({
   hairline: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    marginTop: 0,
   },
-  lane: { position: 'absolute', top: 0, bottom: 0 },
+  gapBand: {
+    position: 'absolute',
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gapLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  lane: { position: 'absolute', top: 0, bottom: 0, right: 0 },
   eventBlock: {
     flex: 1,
     borderWidth: 1,
     borderLeftWidth: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     overflow: 'hidden',
   },
   taskRow: {
+    position: 'absolute',
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -265,13 +310,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'stretch',
-    gap: 8,
+    gap: 10,
     minWidth: 0,
   },
   taskBar: { width: 3, alignSelf: 'stretch' },
   checkButton: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },

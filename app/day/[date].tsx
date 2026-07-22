@@ -12,10 +12,12 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { DayTimeline } from '@/components/day-timeline';
 import { EventCard } from '@/components/event-card';
+import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
+import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { useEvents } from '@/lib/events/use-events';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
 import { useTasks } from '@/lib/tasks/use-tasks';
@@ -28,7 +30,7 @@ export default function DayScreen() {
   const { date, ax, ay } = useLocalSearchParams<{ date: string; ax?: string; ay?: string }>();
   const { colors, space, type } = useTheme();
   const { data: tasks } = useTasks();
-  const { handleSwipeRight } = useTaskActions();
+  const { handleSwipeRight, handleSwipeLeft } = useTaskActions();
   const urgencyThresholdHours = useUrgencyThreshold();
   const today = useToday();
 
@@ -182,20 +184,68 @@ export default function DayScreen() {
               showsVerticalScrollIndicator={false}>
               {dayTasks.length === 0 && dayEvents.length === 0 ? (
                 <Text style={[type.body, { color: colors.textSecondary }]}>Nothing due this day.</Text>
+              ) : isWide ? (
+                /* Wide screens: two panes — the timeline of EVENTS on the
+                   left, tasks as NORMAL full-size cards on the right, ordered
+                   by time (developer design 2026-07-22 v2). */
+                <View style={{ flexDirection: 'row', gap: space.s6, alignItems: 'flex-start' }}>
+                  <View style={{ flex: 45, gap: space.s3 }}>
+                    <Text style={[type.h2, { color: colors.textSecondary }]}>Schedule</Text>
+                    {dayEvents.filter((e) => e.allDay).map((event) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        onPress={(e) => router.push(`/event/${e.id}`)}
+                        showNotes
+                      />
+                    ))}
+                    {dayEvents.some((e) => !e.allDay) ? (
+                      <DayTimeline
+                        variant="eventsOnly"
+                        events={dayEvents.filter((e) => !e.allDay)}
+                        now={date === localDateKey(today) ? new Date() : null}
+                        onPressEvent={(e) => router.push(`/event/${e.id}`)}
+                      />
+                    ) : (
+                      dayEvents.length === 0 && (
+                        <Text style={[type.body, { color: colors.textSecondary }]}>No events.</Text>
+                      )
+                    )}
+                  </View>
+                  <View style={{ flex: 55, gap: space.s3 }}>
+                    <Text style={[type.h2, { color: colors.textSecondary }]}>Tasks</Text>
+                    {dayTasks.length === 0 ? (
+                      <Text style={[type.body, { color: colors.textSecondary }]}>No tasks due.</Text>
+                    ) : (
+                      dayTasks.map((task) => (
+                        <SwipeableTaskCard
+                          key={task.id}
+                          task={task}
+                          onSwipeRight={handleSwipeRight}
+                          onSwipeLeft={handleSwipeLeft}
+                          onPress={(t) => router.push(`/task/${t.id}`)}
+                          enterFrom={getEnterFrom(task.id)}
+                          onEntered={clearEnterMark}
+                          showDescription
+                        />
+                      ))
+                    )}
+                  </View>
+                </View>
               ) : (
+                /* Phones: ONE full-width timeline — events and tasks
+                   interleaved by time; long empty stretches collapse into a
+                   small "N hr" band so a sparse day stays compact. */
                 <>
-                  {/* All-day events have no place on an hour axis — strip on top. */}
                   {dayEvents.filter((e) => e.allDay).map((event) => (
                     <EventCard
                       key={event.id}
                       event={event}
                       onPress={(e) => router.push(`/event/${e.id}`)}
-                      showNotes={isWide}
                     />
                   ))}
-                  {/* The timeline: events (left, sized by duration) + tasks
-                      (right, uniform rows, one-tap complete). */}
                   <DayTimeline
+                    variant="merged"
                     events={dayEvents.filter((e) => !e.allDay)}
                     tasks={dayTasks}
                     urgencyThresholdHours={urgencyThresholdHours}

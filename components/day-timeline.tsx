@@ -26,7 +26,11 @@ const CONFIG: TimelineConfig = {
   taskHeight: 56,
   taskGap: 6,
   minEventHeight: 30,
-  gapThresholdHours: 2,
+  // Developer preference (2026-07-22): NO gap compression — the timeline
+  // renders every hour at true scale. The engine still supports collapsing
+  // long empty stretches (tested); flip this back to a small number (e.g. 2)
+  // to re-enable "N hr" bands.
+  gapThresholdHours: Number.POSITIVE_INFINITY,
   gapBandPx: 44,
 };
 const RULER_WIDTH = 52;

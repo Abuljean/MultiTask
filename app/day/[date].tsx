@@ -3,8 +3,9 @@
 // (developer request): the page scales up from the calendar on entry and
 // scales back down on exit. Custom header (no native back-swipe — the zoom
 // replaces the native push animation).
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { StackActions, useRoute } from '@react-navigation/native';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,8 @@ import { useTheme } from '@/lib/theme/use-theme';
 
 export default function DayScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const routeKey = useRoute().key;
   const insets = useSafeAreaInsets();
   const { date, ax, ay } = useLocalSearchParams<{ date: string; ax?: string; ay?: string }>();
   const { colors, space, type } = useTheme();
@@ -87,11 +90,30 @@ export default function DayScreen() {
     transform: [{ translateY: dragY.value }, { scale: scale.value }],
   }));
 
+  // Once closing: stop eating clicks immediately, and NEVER let navigation
+  // wait on an animation callback — on web, scaling this whole page tree
+  // (hour grid + dozens of absolutely-positioned blocks) can stall the JS
+  // thread so badly the completion callback fires seconds late, or frames
+  // drop entirely and there's no fade at all (developer report 2026-07-23).
+  const [dismissing, setDismissing] = useState(false);
+  const closeStarted = useRef(false);
+
   function goBack() {
-    router.back();
+    // Pop THIS route by key — the user may already be somewhere new.
+    navigation.dispatch({ ...StackActions.pop(1), source: routeKey });
   }
 
   function close() {
+    if (closeStarted.current) return;
+    closeStarted.current = true;
+    setDismissing(true);
+    if (Platform.OS === 'web') {
+      // Cheap fade only (no full-tree scale), and navigation on a TIMER so a
+      // janked frame can't hold the exit hostage.
+      opacity.value = withTiming(0, { duration: 120 });
+      setTimeout(goBack, 130);
+      return;
+    }
     scale.value = withTiming(START_SCALE, { duration: 220, easing: Easing.in(Easing.cubic) });
     opacity.value = withTiming(0, { duration: 200 }, (finished) => {
       if (finished) runOnJS(goBack)();
@@ -138,6 +160,7 @@ export default function DayScreen() {
 
   return (
     <Animated.View
+      pointerEvents={dismissing ? 'none' : 'auto'}
       style={[styles.screen, zoomStyle, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
       <GestureDetector gesture={pagePan}>
         <View style={styles.pageFill}>

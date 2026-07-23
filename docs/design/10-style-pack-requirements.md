@@ -165,6 +165,23 @@ Card: padding 16, radius 16 (unless overridden within range), accent bar 3×full
 ### 4.9 Locked (never customizable)
 Status semantics & non-color encodings (accent bar/icons/strikethrough), layout structure & density, copy, tap targets ≥44pt, notification content, reduced-motion collapse (OS setting always wins over pack motion), sign-in/auth UI beyond background.
 
+### 4.10 Inventory additions — 2026-07-16 → 07-23 builds (keep doc 11 in sync)
+New customizable surfaces shipped since this inventory was written. Same rules as §4.1–4.5 (tokens only, ranges enforced, locked list §4.9 still wins):
+
+| Surface | Customizable parts | Notes/ranges |
+|---|---|---|
+| **Day timeline** (day page) | hour-ruler label color/font-size (10–11), hairline color, event-block surface + left bar width (2–4) + radius (4–8), task-row surface/radius (6–12) + status bar width (2–4), check-circle size (18–24), now-line color (default status-overdue accent) + dot Ø (6–8) | Geometry (64px/hr scale, 56pt task rows, 56/42 width share, 45/55 wide panes) is LOCKED — it's layout structure per §4.9. Gap-band styling reserved (feature flag off). |
+| **Calendar month bars** | task-bar bg/accent per status, event-bar dashed border width (1–2) + radius, bar text size (10–11) | Light-mode bar TEXT is auto-derived at ≥7:1 from the event color (readableTextColor minRatio) — packs may NOT lower this (contrast validator VAL-4 applies). |
+| **Calendar dot counts** (phone) | count text color pair (event count / task overflow) | Count PRESENCE is locked (information, not decoration). |
+| **iOS widgets** (home small/medium/large + lock rect/circular) | status accent bars, due-label font (mono), check-circle stroke, event-row glyph + event-blue, background (containerBackground), fallback copy colors | Widget fonts limited to the system + pack's licensed fonts; lock-screen families render monochrome (OS constraint — packs can't override). Snapshot CONTENT (overdue-first ordering, counts, week buckets) is locked. |
+| **Import sheet selector** | segmented-control border/active fill (accent), per-row Task/Event pill colors | Row semantics (Task=accent, Event=event-blue) locked — they encode destination. |
+| **Category/subject creator** | Add-button fill (accent) + disabled opacity (0.3–0.5) | The explicit Add button itself is locked UX (silent-loss fix 2026-07-21). |
+| **Sheet exit motion** | web exit duration 100–160ms (default 120), native 200–300 (default 260) | Faster-than-open by design: the page under a modal is inert until the route pops, so exit time is blocked-input time. |
+| **Sync-state dot** | live color (default statusEventAccent blue), syncing color (accent), offline ring color (default overdue red, outlined) | Supersedes doc 02's original dot spec (developer decision 2026-07-15). Outline-vs-fill encoding locked (non-color cue). |
+| **Auth screens** | background surface only | Everything else on sign-in/up (card anatomy, wordmark, dateline, fields, button) stays locked per §4.9 — auth must always look trustworthy-default. |
+
+Token default change: light `accent` is now **#4954C7** (was #3D4A7A — read as dark/mushy on white; developer decision 2026-07-21, doc 03 updated). Packs targeting light mode should re-check their accent-adjacent contrast against the new default muted variant `rgba(73,84,199,0.12)`.
+
 ## 5. In-app requirements
 
 - **APP-1** Settings gains a low-key **"Styles"** row near the bottom → styles screen: applied pack, owned packs grid, "Back to default" always visible. **NO user import** (changed 2026-07-12, developer decision — see APP-7). *(Shipped 2026-07-12 as scaffolding: registry + provider merge + Styles sheet with a "coming soon" state; `lib/style-packs/registry.ts`.)*

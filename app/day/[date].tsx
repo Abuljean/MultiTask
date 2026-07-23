@@ -210,8 +210,12 @@ export default function DayScreen() {
               ) : isWide ? (
                 /* Wide screens: two panes — the timeline of EVENTS on the
                    left, tasks as NORMAL full-size cards on the right, ordered
-                   by time (developer design 2026-07-22 v2). */
-                <View style={{ flexDirection: 'row', gap: space.s6, alignItems: 'flex-start' }}>
+                   by time (developer design 2026-07-22 v2). Panes STRETCH to
+                   the row's height and each ends in a grow-to-fill exit
+                   Pressable — the empty space under a short pane (e.g. no
+                   tasks while the timeline runs long) must dismiss like the
+                   gutters do (reported 2026-07-23). */
+                <View style={{ flexDirection: 'row', gap: space.s6, alignItems: 'stretch' }}>
                   <View style={{ flex: 45, gap: space.s3 }}>
                     <Text style={[type.h2, { color: colors.textSecondary }]}>Schedule</Text>
                     {dayEvents.filter((e) => e.allDay).map((event) => (
@@ -234,6 +238,11 @@ export default function DayScreen() {
                         <Text style={[type.body, { color: colors.textSecondary }]}>No events.</Text>
                       )
                     )}
+                    <Pressable
+                      onPress={close}
+                      accessibilityLabel="Back to calendar"
+                      style={{ flexGrow: 1, minHeight: 24 }}
+                    />
                   </View>
                   <View style={{ flex: 55, gap: space.s3 }}>
                     <Text style={[type.h2, { color: colors.textSecondary }]}>Tasks</Text>
@@ -253,6 +262,11 @@ export default function DayScreen() {
                         />
                       ))
                     )}
+                    <Pressable
+                      onPress={close}
+                      accessibilityLabel="Back to calendar"
+                      style={{ flexGrow: 1, minHeight: 24 }}
+                    />
                   </View>
                 </View>
               ) : (

@@ -2,9 +2,10 @@
 // (notes/description especially, which the card doesn't show). Read-only by
 // design: events are imported and deleted, never edited. Single-event
 // delete lives here (confirmed — no undo path exists for events).
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StackActions, useRoute } from '@react-navigation/native';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -17,6 +18,8 @@ import { useTheme } from '@/lib/theme/use-theme';
 
 export default function EventDetailScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const routeKey = useRoute().key;
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = Number(id);
   const { colors, space, radius, type, monoFont, isDark } = useTheme();
@@ -44,18 +47,31 @@ export default function EventDetailScreen() {
   // the sheet has closed — stashed here, executed in goBack.
   const afterClose = useRef<(() => void) | null>(null);
   const closing = useRef(false);
+  // Once closing, the sheet must stop eating clicks IMMEDIATELY — otherwise
+  // the dying backdrop blocks the page underneath for the whole exit
+  // animation and you can't open the next event (flow bug, 2026-07-22).
+  const [dismissing, setDismissing] = useState(false);
 
   function goBack() {
-    router.back();
+    // Pop THIS route by key, not the top of the stack: the user may have
+    // already opened the NEXT sheet during our 260ms exit animation (the
+    // pointerEvents fix makes that possible), and a plain back() would pop
+    // their new sheet instead of this dying one.
+    navigation.dispatch({ ...StackActions.pop(1), source: routeKey });
     afterClose.current?.();
     afterClose.current = null;
   }
   function close() {
     closing.current = true;
-    backdropOpacity.value = withTiming(0, { duration: 220 });
+    setDismissing(true);
+    // WEB: the page under a modal is INERT until the route pops (react-
+    // navigation), so every ms of exit animation is time the user can't
+    // click the next card. 120ms reads as instant; native keeps its feel.
+    const exitMs = Platform.OS === 'web' ? 120 : 260;
+    backdropOpacity.value = withTiming(0, { duration: Math.min(220, exitMs) });
     sheetOffset.value = withTiming(
       screenHeight,
-      { duration: 260, easing: Easing.in(Easing.cubic) },
+      { duration: exitMs, easing: Easing.in(Easing.cubic) },
       (finished) => {
         if (finished) runOnJS(goBack)();
       }
@@ -102,7 +118,7 @@ export default function EventDetailScreen() {
   const timeColor = event.color ? readableTextColor(event.color, isDark) : colors.statusEventAccent;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents={dismissing ? 'none' : 'auto'}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close event" />
       <Animated.View

@@ -7,8 +7,9 @@
 // silently no-ops in Modal's separate native window). Dismissal is
 // tap-outside or the submit button ONLY — the body scrolls and scrolling can
 // never close the sheet.
+import { StackActions, useRoute } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
@@ -200,6 +201,8 @@ const isWeb = Platform.OS === 'web';
 
 export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, onSubmit }: Props) {
   const router = useRouter();
+  const navigation = useNavigation();
+  const routeKey = useRoute().key;
   const { colors, space, radius, type, monoFont } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
@@ -280,16 +283,28 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     opacity: backdropOpacity.value * 0.35,
   }));
 
+  // Once closing, stop eating clicks IMMEDIATELY — the dying backdrop
+  // otherwise blocks the page underneath for the whole exit animation and
+  // the next card can't be opened (flow bug, 2026-07-22).
+  const [dismissing, setDismissing] = useState(false);
+
   function goBack() {
-    router.back();
+    // Pop THIS route by key, not the stack top — during the exit animation
+    // the user may already have opened the next sheet (pointerEvents fix),
+    // and a plain back() would pop their new sheet instead of this one.
+    navigation.dispatch({ ...StackActions.pop(1), source: routeKey });
   }
 
   function close() {
     Keyboard.dismiss();
-    backdropOpacity.value = withTiming(0, { duration: 220 });
+    setDismissing(true);
+    // WEB: the page under a modal is INERT until the route pops, so a long
+    // exit animation blocks the next click. 120ms reads as instant.
+    const exitMs = isWeb ? 120 : 260;
+    backdropOpacity.value = withTiming(0, { duration: Math.min(220, exitMs) });
     sheetOffset.value = withTiming(
       closedOffset,
-      { duration: 260, easing: Easing.in(Easing.cubic) },
+      { duration: exitMs, easing: Easing.in(Easing.cubic) },
       (finished) => {
         if (finished) runOnJS(goBack)();
       }
@@ -474,7 +489,9 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   const maxBodyHeight = Math.max(200, screenHeight - keyboardHeight - insets.top - 220);
 
   return (
-    <View style={[styles.container, isWeb && styles.containerWeb]}>
+    <View
+      style={[styles.container, isWeb && styles.containerWeb]}
+      pointerEvents={dismissing ? 'none' : 'auto'}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       {/* Tap outside (or drag the sheet down) to cancel; unsaved changes
           get a discard confirmation. */}

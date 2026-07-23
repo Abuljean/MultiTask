@@ -95,10 +95,12 @@ export default function ImportEventsScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    // readAsStringAsync loads the whole file into memory — a mis-picked
-    // video would hang or OOM the app. Any plausible calendar CSV is far
-    // under 5 MB.
-    if (asset.size != null && asset.size > 5 * 1024 * 1024) {
+    // Reading loads the whole file into memory — a mis-picked video would
+    // hang or OOM the app. Any plausible calendar CSV is far under 5 MB.
+    // Check BOTH size sources: asset.size can be null on some pickers, and
+    // on web the File object always knows (security pass 2026-07-23).
+    const size = asset.size ?? asset.file?.size ?? null;
+    if (size != null && size > 5 * 1024 * 1024) {
       toast.show({ message: 'That file is too large for a calendar CSV (5 MB max).' });
       return;
     }

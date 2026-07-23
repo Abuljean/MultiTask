@@ -106,14 +106,15 @@ export default function MarketplaceScreen() {
         </View>
         <Text style={[type.display, { color: colors.textPrimary }]}>Styles marketplace</Text>
         <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s1, marginBottom: space.s5 }]}>
-          Curated looks for your tasks. Every pack is reviewed and signed by Multitask before it
-          appears here.
+          Layout preview with placeholder packs. When the marketplace launches, every pack will be
+          reviewed and signed by Multitask before it appears here.
         </Text>
 
-        {/* Featured hero — the storefront's one loud moment. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${FEATURED.name}, featured pack`}
+        {/* Featured hero — the storefront's one loud moment. Plain Views,
+            not Pressables: placeholder cards must not announce themselves
+            as buttons to assistive tech (CodeRabbit a11y pass 2026-07-23);
+            they become pressable when real pack detail pages exist. */}
+        <View
           style={[
             styles.hero,
             { borderRadius: radius.card, borderColor: colors.borderSubtle },
@@ -131,7 +132,7 @@ export default function MarketplaceScreen() {
             </View>
             <PriceChip price={FEATURED.price} />
           </View>
-        </Pressable>
+        </View>
 
         {/* Horizontal shelf */}
         <Text style={[type.h2, { color: colors.textPrimary, marginTop: space.s6, marginBottom: space.s3 }]}>
@@ -139,10 +140,8 @@ export default function MarketplaceScreen() {
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.s3 }}>
           {SHELF_NEW.map((pack) => (
-            <Pressable
+            <View
               key={pack.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${pack.name} by ${pack.author}, ${pack.price}`}
               style={[
                 styles.shelfCard,
                 { borderRadius: radius.card, borderColor: colors.borderSubtle, backgroundColor: colors.surfaceElevated },
@@ -159,7 +158,7 @@ export default function MarketplaceScreen() {
                   <PriceChip price={pack.price} />
                 </View>
               </View>
-            </Pressable>
+            </View>
           ))}
         </ScrollView>
 
@@ -169,10 +168,8 @@ export default function MarketplaceScreen() {
         </Text>
         <View style={[styles.grid, { gap: space.s3 }]}>
           {GRID.map((pack) => (
-            <Pressable
+            <View
               key={`g-${pack.id}`}
-              accessibilityRole="button"
-              accessibilityLabel={`${pack.name} by ${pack.author}, ${pack.price}`}
               style={[
                 styles.gridCard,
                 { borderRadius: radius.card, borderColor: colors.borderSubtle, backgroundColor: colors.surfaceElevated },
@@ -189,7 +186,7 @@ export default function MarketplaceScreen() {
                   <PriceChip price={pack.price} />
                 </View>
               </View>
-            </Pressable>
+            </View>
           ))}
         </View>
 

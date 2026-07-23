@@ -40,30 +40,32 @@ function timeRange(event: CalendarEvent): string {
   return event.end ? `${fmt(event.start)} – ${fmt(event.end)}` : fmt(event.start);
 }
 
-type Props = {
-  variant: TimelineMode;
+// Discriminated by variant so task handlers can't be forgotten: rendering a
+// task row whose press/toggle silently no-ops would expose fake buttons to
+// assistive tech (CodeRabbit security/a11y pass 2026-07-23).
+type BaseProps = {
   events: CalendarEvent[];
-  /** Only used by the 'merged' variant. */
-  tasks?: Task[];
-  urgencyThresholdHours?: number;
   /** Local now — only passed when this page is showing TODAY (draws the now line). */
   now?: Date | null;
   onPressEvent: (event: CalendarEvent) => void;
-  onPressTask?: (task: Task) => void;
-  /** The complete/restore toggle (same handler as a swipe-right). */
-  onToggleTask?: (task: Task) => void;
 };
 
-export function DayTimeline({
-  variant,
-  events,
-  tasks = [],
-  urgencyThresholdHours = 48,
-  now,
-  onPressEvent,
-  onPressTask,
-  onToggleTask,
-}: Props) {
+type Props =
+  | (BaseProps & { variant: 'eventsOnly' })
+  | (BaseProps & {
+      variant: 'merged';
+      tasks: Task[];
+      urgencyThresholdHours: number;
+      onPressTask: (task: Task) => void;
+      /** The complete/restore toggle (same handler as a swipe-right). */
+      onToggleTask: (task: Task) => void;
+    });
+
+export function DayTimeline(props: Props) {
+  const { variant, events, now, onPressEvent } = props;
+  const merged = props.variant === 'merged' ? props : null;
+  const tasks = merged?.tasks ?? [];
+  const urgencyThresholdHours = merged?.urgencyThresholdHours ?? 48;
   const { colors, radius, type, monoFont, isDark } = useTheme();
 
   const layout = useMemo(
@@ -213,7 +215,7 @@ export function DayTimeline({
                 },
               ]}>
               <Pressable
-                onPress={() => onPressTask?.(task)}
+                onPress={() => merged?.onPressTask(task)}
                 accessibilityRole="button"
                 accessibilityLabel={`${task.title}, ${done ? 'completed' : status}`}
                 style={styles.taskBody}>
@@ -231,18 +233,31 @@ export function DayTimeline({
                     }}>
                     {task.title}
                   </Text>
-                  <Text
-                    style={{
-                      fontFamily: monoFont,
-                      fontSize: 10,
-                      color: !done && status === 'overdue' ? accent : colors.textTertiary,
-                    }}>
-                    {due.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {/* Non-color overdue cue — same triangle as the task
+                        card (rule 1: never color alone). Urgent-vs-ongoing's
+                        extra cue stays a deferred design decision, matching
+                        cards (REVIEW-REPORT deferred #1). */}
+                    {!done && status === 'overdue' && (
+                      <IconSymbol
+                        name="exclamationmark.triangle.fill"
+                        size={10}
+                        color={colors.statusOverdueAccent}
+                      />
+                    )}
+                    <Text
+                      style={{
+                        fontFamily: monoFont,
+                        fontSize: 10,
+                        color: !done && status === 'overdue' ? accent : colors.textTertiary,
+                      }}>
+                      {due.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                    </Text>
+                  </View>
                 </View>
               </Pressable>
               <Pressable
-                onPress={() => onToggleTask?.(task)}
+                onPress={() => merged?.onToggleTask(task)}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={done ? `Un-complete ${task.title}` : `Complete ${task.title}`}

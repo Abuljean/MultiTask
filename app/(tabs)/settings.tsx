@@ -403,6 +403,9 @@ export default function SettingsScreen() {
           </Text>
         </Pressable>
 
+        {sectionTitle('Help')}
+        {actionRow('How to use Multitask', () => router.push('/guide'))}
+
         {sectionTitle('Session')}
         {droppedOps > 0 && (
           <Text style={[type.caption, { color: colors.textTertiary, marginBottom: space.s2 }]}>

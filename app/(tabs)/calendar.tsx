@@ -21,6 +21,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useTourAnchor } from '@/components/tour/tour-context';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
@@ -72,6 +73,7 @@ export default function CalendarScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, space, type, isDark } = useTheme();
+  const barAnchor = useTourAnchor('calendar-bar');
   const { width: windowWidth } = useWindowDimensions();
   const { data: tasks } = useTasks();
   const urgencyThresholdHours = useUrgencyThreshold();
@@ -472,7 +474,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-      <View style={[styles.topBar, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
+      <View ref={barAnchor.ref} onLayout={barAnchor.onLayout} style={[styles.topBar, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
         {mode === 'month' ? (
           <Pressable
             onPress={() => {

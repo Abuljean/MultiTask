@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
 import { SearchFilterBar } from '@/components/search-filter-bar';
+import { useTourAnchor } from '@/components/tour/tour-context';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { SyncStatusDot } from '@/components/sync-status-dot';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
@@ -45,6 +46,8 @@ import { useTheme } from '@/lib/theme/use-theme';
 export default function TaskListScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const listAnchor = useTourAnchor('task-list');
+  const searchAnchor = useTourAnchor('search-bar');
   const { colors, space, type } = useTheme();
   const { data: tasks, isLoading, error, refetch } = useTasks();
   const today = useToday(); // regroups sections when the date rolls over (deferred #13)
@@ -300,7 +303,7 @@ export default function TaskListScreen() {
       {/* The SCROLLABLE spans the window (scrollbar at the true edge; swipe
           exits travel the full viewport) — content centers itself via
           pageContent inside contentContainerStyle. */}
-      <View style={[styles.titleRow, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
+      <View ref={listAnchor.ref} onLayout={listAnchor.onLayout} style={[styles.titleRow, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s3 }]}>
         <Text style={[type.h1, { color: colors.textPrimary }]}>Tasks</Text>
         {/* The theme toggle is ALWAYS the outermost top-right control on
             every tab (developer request) — other actions sit to its left. */}

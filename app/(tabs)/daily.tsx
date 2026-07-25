@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/event-card';
 import { SwipeableRow } from '@/components/swipeable-row';
+import { TourAnchor } from '@/components/tour/tour-context';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -206,7 +207,9 @@ export default function DailyScreen() {
         refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={onPullRefresh} />}
         contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
         <View style={styles.titleRow}>
+          <TourAnchor id="daily-header">
           <Text style={[type.h1, { color: colors.textPrimary, paddingTop: space.s3 }]}>Daily</Text>
+          </TourAnchor>
           <ThemeToggleButton />
         </View>
         <Text style={[type.body, { color: colors.textSecondary, marginBottom: space.s4 }]}>

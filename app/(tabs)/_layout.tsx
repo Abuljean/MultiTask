@@ -3,6 +3,8 @@ import React from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { TourProvider } from '@/components/tour/tour-context';
+import { TourOverlay } from '@/components/tour/tour-overlay';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useCalendarSync } from '@/hooks/use-calendar-sync';
 import { useDroppedOpCount } from '@/hooks/use-dropped-ops';
@@ -12,6 +14,12 @@ import { useNotificationSync } from '@/hooks/use-notification-sync';
 import { useQuickActions } from '@/hooks/use-quick-actions';
 import { useWidgetSnapshot } from '@/hooks/use-widget-snapshot';
 import { useTheme } from '@/lib/theme/use-theme';
+
+/** Runs inside TourProvider so the first-run hook can start the tour. */
+function FirstRunTour() {
+  useFirstRunGuide();
+  return null;
+}
 
 export default function TabLayout() {
   const { colors } = useTheme();
@@ -23,7 +31,6 @@ export default function TabLayout() {
   useQuickActions();
   useWidgetSnapshot();
   useDroppedOpCount({ notify: true });
-  useFirstRunGuide();
 
   // Desktop/web: navigation moves to a LEFT-side rail (developer pick
   // 2026-07-11 after seeing the right rail live; docs/design/08 updated) —
@@ -32,6 +39,7 @@ export default function TabLayout() {
   const sideNav = Platform.OS === 'web' && width >= 1024;
 
   return (
+    <TourProvider>
     <Tabs
       screenOptions={{
         // Token accent, NOT the Expo template's teal — the active tab is the
@@ -77,5 +85,8 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    <FirstRunTour />
+    <TourOverlay />
+    </TourProvider>
   );
 }

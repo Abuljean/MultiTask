@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InputPromptDialog, type PromptRequest } from '@/components/input-prompt';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
+import { TourAnchor, useTour } from '@/components/tour/tour-context';
 import { useUndoToast } from '@/components/undo-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCalendarSyncEnabled } from '@/hooks/use-calendar-sync-enabled';
@@ -44,6 +45,7 @@ export default function SettingsScreen() {
   const { colors, space, radius, type } = useTheme();
   const { session } = useAuth();
   const toast = useUndoToast();
+  const tour = useTour();
   const threshold = useUrgencyThreshold();
   const leadMinutes = useNotificationLead();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -230,7 +232,9 @@ export default function SettingsScreen() {
         contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
         <View style={styles.titleRow}>
           <Text style={[type.h1, { color: colors.textPrimary, paddingVertical: space.s3 }]}>Settings</Text>
-          <ThemeToggleButton />
+          <TourAnchor id="theme-toggle">
+            <ThemeToggleButton />
+          </TourAnchor>
         </View>
 
         {/* ---------------------------- Profile ---------------------------- */}
@@ -404,6 +408,7 @@ export default function SettingsScreen() {
         </Pressable>
 
         {sectionTitle('Help')}
+        {actionRow('Replay the tour', () => tour.start())}
         {actionRow('How to use Multitask', () => router.push('/guide'))}
 
         {sectionTitle('Session')}

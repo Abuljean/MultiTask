@@ -3,6 +3,7 @@
 // elements allowed a real shadow (it IS elevated).
 import { Pressable, StyleSheet } from 'react-native';
 
+import { useTourAnchor } from '@/components/tour/tour-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -17,8 +18,11 @@ export function Fab({
   right?: number;
 }) {
   const { colors } = useTheme();
+  const anchor = useTourAnchor('fab');
   return (
     <Pressable
+      ref={anchor.ref}
+      onLayout={anchor.onLayout}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel="Add task"

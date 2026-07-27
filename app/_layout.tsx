@@ -13,6 +13,7 @@ import { UndoToastProvider } from '@/components/undo-toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { initNotifications } from '@/lib/notifications';
+import { initTelemetry } from '@/lib/telemetry/system';
 import { AppThemeProvider, useTheme } from '@/lib/theme/use-theme';
 
 // One QueryClient for the app's lifetime (module scope, NOT inside the
@@ -21,6 +22,9 @@ const queryClient = new QueryClient();
 
 // Foreground notification display + Android channel — once per process.
 initNotifications();
+// Crash/error telemetry — dormant until EXPO_PUBLIC_SENTRY_DSN is set
+// (rubric #8). Fire-and-forget: the app never waits on it.
+void initTelemetry();
 
 export const unstable_settings = {
   anchor: '(tabs)',

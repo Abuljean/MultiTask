@@ -110,6 +110,67 @@ Before shipping any screen, mentally check `docs/design/06-anti-generic.md`. The
 
 ---
 
+## Product success rubric (what "working" means — added 2026-07-25)
+The product is succeeding when ALL of these hold. Check them when judging any release; a real-world failure of one becomes a test case.
+1. **The developer lives in it:** ≥10 tasks completed per week through the app (not the old site), sustained.
+2. **Zero data loss, ever:** no task/event created on any device fails to reach every other signed-in surface within 60s of connectivity. (Guarded by: PowerSync + dropped-op surfacing + nightly DB backups.)
+3. **Cold open → today's tasks in under 2 seconds** on the phone; the answer to "what's due today?" never requires a second interaction.
+4. **Quick-add ≤ 10 seconds** title-to-saved for a titled, timed task.
+5. **A migrated web user reaches their old tasks unaided:** sign up with the same email → confirm → tasks appear. No support step.
+6. **Offline is invisible:** airplane-mode create/complete/edit behaves identically to online; the only difference is the status dot.
+7. **Notifications fire within a minute** of their scheduled time; the badge count is never wrong on app open.
+8. **No silent failures in production:** every crash/error surfaces in telemetry (once wired) and each unique one gets a test or a fix.
+9. **Design holds its own bar:** every shipped screen passes docs/design/06's checklist and rule 1 (status never by color alone).
+10. **The suite stays green:** no commit lands with failing tests; the benchmark only grows.
+
+## Operating principles — agentic work (Manager's Playbook Part 8, adopted 2026-07-25)
+```
+PLANNING
+1. Before building, produce an org-design document containing: goal (a domain
+   outcome, not "use AI"), roles, inputs/outputs per role, pipeline order,
+   success rubric, roadmap with a small first milestone.
+2. Think as the manager, not the drone. If instructions are ambiguous, clarify
+   the spec before executing.
+
+DECOMPOSITION
+3. One agent, one job. A role's job must be statable in one sentence without
+   the word "and". If it cannot, split the role.
+4. Scope each agent narrower than a human job description.
+5. Every step emits a visible artifact. Every handoff is verified. No
+   invisible steps; never skip steps that appear optional.
+
+MEMORY & GROUNDING
+6. For each agent define three buckets: always-knows / receives-this-run /
+   passes-forward. Exclude all other context.
+7. Assert nothing without a source. Prefer retrieval over recall. Flag
+   uncertainty explicitly instead of guessing.
+
+RULES VS JUDGMENT
+8. Enforce mechanically checkable properties (formats, schemas, thresholds,
+   citation presence) with code, never with model judgment.
+9. Reserve model judgment for relevance, quality, synthesis, and tone —
+   graded against a written rubric with examples.
+
+EVALUATION
+10. Maintain a fixed benchmark of test cases with known-good answers.
+    Run it after every change. No change ships on a red or untested benchmark.
+11. Improvement is a number, not a feeling.
+
+AUDIT LOOP (ON ANY FAILURE)
+12. Read the full transcript. Locate the first divergence from correct.
+13. Classify the root cause as exactly one of: INSTRUCTION (spec ambiguous),
+    DECOMPOSITION (task too big), INFORMATION (missing fact/source).
+14. Make one fix matching the class. Re-run the full benchmark. Commit if
+    improved without regression; otherwise revert and reclassify.
+
+SCALE
+15. Start with one real task currently done by hand in 30+ minutes. Expand
+    one niche at a time, only after the benchmark is green.
+16. Version everything — prompts, rubrics, evals, outputs — in Git.
+17. Validate on history (backtest), then deploy small (forward test), and
+    feed real-world failures back into the benchmark.
+```
+
 ## Working style
 - Developer is learning React Native as they go — explain reasoning, go step by step, one piece at a time (describe → build → test → iterate).
 - **Do NOT enable "accept all" edits blindly early on** — approve changes individually until trust is built.

@@ -14,6 +14,7 @@ import {
 
 import { supabase } from '@/lib/supabase';
 import { isPermanentRejection } from '@/lib/sync/permanent-errors';
+import { captureError } from '@/lib/telemetry/system';
 
 // Postgres primary-key column per table (the client `id` maps onto it).
 const PK_COLUMN: Record<string, string> = {
@@ -85,6 +86,9 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
             op.op,
             (error as { code?: string })?.code
           );
+          // Rubric #2/#8: a dropped op is data loss — it must reach the
+          // dashboard, not just the console. (No row content is sent.)
+          captureError(error, { where: 'sync-drop', table: op.table, opType: String(op.op) });
           continue;
         }
         throw error;

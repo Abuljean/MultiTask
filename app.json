@@ -13,7 +13,9 @@
       "bundleIdentifier": "com.abuljean.multitask",
       "appleTeamId": "942W32N3DA",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.abuljean.multitask"]
+        "com.apple.security.application-groups": [
+          "group.com.abuljean.multitask"
+        ]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -73,11 +75,14 @@
               "id": "quick-add",
               "title": "Quick add",
               "icon": "symbol:plus",
-              "params": { "href": "/quick-add" }
+              "params": {
+                "href": "/quick-add"
+              }
             }
           ]
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,

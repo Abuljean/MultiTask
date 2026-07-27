@@ -16,6 +16,7 @@ import { useEffect } from 'react';
 import { clearTaskNotifications } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
 import { initSync, reconnectSync, syncDb, teardownSync } from '@/lib/sync/system';
+import { captureError } from '@/lib/telemetry/system';
 
 const TABLE_KEYS: [string, string][] = [
   ['task', 'tasks'],
@@ -54,6 +55,8 @@ export function SyncBridge() {
           // dead and screens would silently go stale — leave a trace.
           if (!signal.aborted) {
             console.warn(`Sync watch for ${table} ended unexpectedly`, error);
+            // A dead bridge = screens silently stale (rubric #8) — report it.
+            captureError(error, { where: 'sync-bridge-watch', table });
           }
         });
       }

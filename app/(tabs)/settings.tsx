@@ -410,6 +410,7 @@ export default function SettingsScreen() {
         {sectionTitle('Help')}
         {actionRow('Replay the tour', () => tour.start())}
         {actionRow('How to use Multitask', () => router.push('/guide'))}
+        {actionRow('Privacy policy', () => router.push('/privacy'))}
 
         {sectionTitle('Session')}
         {droppedOps > 0 && (

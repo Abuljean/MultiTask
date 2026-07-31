@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 
 import { clearTaskNotifications } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
+import { clearSpotlightIndex } from '@/lib/native/system';
 import { initSync, reconnectSync, syncDb, teardownSync } from '@/lib/sync/system';
 import { captureError } from '@/lib/telemetry/system';
 
@@ -68,6 +69,8 @@ export function SyncBridge() {
       if (event === 'SIGNED_OUT') {
         aborter.abort();
         void clearTaskNotifications();
+        // System search must not keep offering the signed-out user's tasks.
+        void clearSpotlightIndex();
         void teardownSync().finally(() => {
           queryClient.clear();
         });

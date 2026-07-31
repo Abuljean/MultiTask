@@ -393,9 +393,41 @@ struct MultitaskWidget: Widget {
   }
 }
 
+// MARK: - Control Center quick-add (iOS 18)
+
+@available(iOS 18.0, *)
+struct QuickAddControlIntent: AppIntent {
+  static var title: LocalizedStringResource = "Quick Add Task"
+  static var isDiscoverable: Bool = false
+  static var openAppWhenRun = true
+
+  func perform() async throws -> some IntentResult {
+    // Same flag the Siri Quick Add intent uses — the app drains it on
+    // foreground (hooks/use-siri-actions.ts) and pushes the sheet.
+    UserDefaults(suiteName: appGroup)?.set(true, forKey: "siri.openQuickAdd")
+    return .result()
+  }
+}
+
+@available(iOS 18.0, *)
+struct QuickAddControl: ControlWidget {
+  var body: some ControlWidgetConfiguration {
+    StaticControlConfiguration(kind: "com.abuljean.multitask.quickadd") {
+      ControlWidgetButton(action: QuickAddControlIntent()) {
+        Label("Quick Add", systemImage: "plus.circle.fill")
+      }
+    }
+    .displayName("Quick Add Task")
+    .description("Opens Multitask straight to quick-add.")
+  }
+}
+
 @main
 struct MultitaskWidgets: WidgetBundle {
   var body: some Widget {
     MultitaskWidget()
+    if #available(iOS 18.0, *) {
+      QuickAddControl()
+    }
   }
 }

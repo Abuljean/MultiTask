@@ -12,6 +12,8 @@ import { useFirstRunGuide } from '@/hooks/use-first-run-guide';
 import { useNotificationNavigation } from '@/hooks/use-notification-navigation';
 import { useNotificationSync } from '@/hooks/use-notification-sync';
 import { useQuickActions } from '@/hooks/use-quick-actions';
+import { useSiriActions } from '@/hooks/use-siri-actions';
+import { useSpotlightSync } from '@/hooks/use-spotlight-sync';
 import { useWidgetSnapshot } from '@/hooks/use-widget-snapshot';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -30,6 +32,8 @@ export default function TabLayout() {
   useCalendarSync();
   useQuickActions();
   useWidgetSnapshot();
+  useSpotlightSync();
+  useSiriActions();
   useDroppedOpCount({ notify: true });
 
   // Desktop/web: navigation moves to a LEFT-side rail (developer pick

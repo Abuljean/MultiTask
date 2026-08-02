@@ -182,6 +182,9 @@ New customizable surfaces shipped since this inventory was written. Same rules a
 
 Token default change: light `accent` is now **#4954C7** (was #3D4A7A — read as dark/mushy on white; developer decision 2026-07-21, doc 03 updated). Packs targeting light mode should re-check their accent-adjacent contrast against the new default muted variant `rgba(73,84,199,0.12)`.
 
+### 4.11 Expanded creative freedom (developer decisions 2026-07-31) — see doc 12
+Developer widened the animation surface: full overhaul of entry/exit/complete/delete/open/close motion per hook (incl. CANCELING stock effects like the notification bounce), LOOPING hover effects on a dedicated hook (<=2s cycle, hover-only), frame-decoration layers around cards (outside the content no-art zone), and per-status completed-card designs. Scaling policy: author once at the largest canvas as VECTOR (Lottie) — runtime scales per-device anchor boxes, durations never scale; raster supplied @3x only for subtle texture. **Doc 12 (`12-style-customization-documentation.md`) is now the public, designer-facing inventory** that ships in the marketplace "create your own skin" section (GIF examples TODO at marketplace build-out); doc 10 remains the enforcement spec. Sync 10<->11<->12 on any inventory change.
+
 ## 5. In-app requirements
 
 - **APP-1** Settings gains a low-key **"Styles"** row near the bottom → styles screen: applied pack, owned packs grid, "Back to default" always visible. **NO user import** (changed 2026-07-12, developer decision — see APP-7). *(Shipped 2026-07-12 as scaffolding: registry + provider merge + Styles sheet with a "coming soon" state; `lib/style-packs/registry.ts`.)*

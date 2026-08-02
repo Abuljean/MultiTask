@@ -36,6 +36,7 @@ const MAPPING = {
   eye: 'visibility',
   'eye.slash': 'visibility-off',
   circle: 'radio-button-unchecked',
+  'list.bullet': 'format-list-bulleted',
 } as IconMapping;
 
 /**

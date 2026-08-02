@@ -158,11 +158,31 @@ export default function DayScreen() {
 
   const title = day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
 
+  // Prev/next day: update the route param in place — the screen stays
+  // mounted (no re-zoom), everything derived from `date` recomputes.
+  function goToDay(delta: number) {
+    const next = new Date(day);
+    next.setDate(next.getDate() + delta);
+    router.setParams({ date: localDateKey(next) });
+  }
+
+  // Phones: swipe the page horizontally to change days. Wide layouts keep
+  // arrows only — task cards there swipe horizontally themselves, and two
+  // horizontal gestures on one surface fight.
+  const daySwipe = Gesture.Pan()
+    .enabled(!isWide)
+    .activeOffsetX([-24, 24])
+    .failOffsetY([-14, 14])
+    .onEnd((event) => {
+      if (event.translationX < -50) runOnJS(goToDay)(1);
+      else if (event.translationX > 50) runOnJS(goToDay)(-1);
+    });
+
   return (
     <Animated.View
       pointerEvents={dismissing ? 'none' : 'auto'}
       style={[styles.screen, zoomStyle, { backgroundColor: colors.surface, paddingTop: insets.top }]}>
-      <GestureDetector gesture={pagePan}>
+      <GestureDetector gesture={Gesture.Race(daySwipe, pagePan)}>
         <View style={styles.pageFill}>
           {/* Blank space (the side gutters) exits back to the calendar —
               web/desktop only; the content column renders above this. */}
@@ -184,14 +204,30 @@ export default function DayScreen() {
               <Text style={[type.body, { color: colors.accent, fontWeight: '600' }]}>Calendar</Text>
             </Pressable>
           </View>
-          <View style={pageContent}>
-            <Text
-              style={[
-                type.h1,
-                { color: colors.textPrimary, paddingHorizontal: space.s4, paddingBottom: space.s3 },
-              ]}>
+          {/* Title row with prev/next-day arrows (developer request
+              2026-08-02); phones can also swipe the page left/right. */}
+          <View style={[pageContent, styles.titleRow, { paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
+            <Text style={[type.h1, { color: colors.textPrimary, flex: 1 }]} numberOfLines={1}>
               {title}
             </Text>
+            <View style={styles.dayNav}>
+              <Pressable
+                onPress={() => goToDay(-1)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Previous day"
+                style={[styles.dayNavButton, { borderColor: colors.borderSubtle }]}>
+                <IconSymbol name="chevron.left" size={18} color={colors.accent} />
+              </Pressable>
+              <Pressable
+                onPress={() => goToDay(1)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Next day"
+                style={[styles.dayNavButton, { borderColor: colors.borderSubtle }]}>
+                <IconSymbol name="chevron.right" size={18} color={colors.accent} />
+              </Pressable>
+            </View>
           </View>
           <GestureDetector gesture={scrollGesture}>
             <ScrollView
@@ -321,5 +357,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dayNav: { flexDirection: 'row', gap: 8 },
+  dayNavButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

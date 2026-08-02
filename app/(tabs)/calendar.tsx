@@ -10,6 +10,7 @@ import {
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -25,7 +26,7 @@ import { useTourAnchor } from '@/components/tour/tour-context';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
-import { buildMonthMatrix, localDateKey, tasksByDay } from '@/lib/tasks/calendar';
+import { buildMonthMatrix, localDateKey, tasksByDay, weekDates } from '@/lib/tasks/calendar';
 import { deriveStatus } from '@/lib/tasks/status';
 import type { Task } from '@/lib/tasks/types';
 import { useTasks } from '@/lib/tasks/use-tasks';
@@ -72,7 +73,7 @@ type MonthItem = { year: number; month: number };
 export default function CalendarScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, space, type, isDark } = useTheme();
+  const { colors, space, type, isDark, monoFont } = useTheme();
   const barAnchor = useTourAnchor('calendar-bar');
   const { width: windowWidth } = useWindowDimensions();
   const { data: tasks } = useTasks();
@@ -89,6 +90,9 @@ export default function CalendarScreen() {
   // tinting follow the date without needing an unrelated re-render.
   const today = useToday();
   const todayKey = localDateKey(today);
+  // Grid ⇄ week-list toggle (developer request 2026-08-02).
+  const [weekView, setWeekView] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0);
   const [mode, setMode] = useState<'month' | 'year'>('month');
   // The month the month-list should open at (changed by the year view).
   const [anchor, setAnchor] = useState<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });
@@ -493,6 +497,19 @@ export default function CalendarScreen() {
           <Text style={[type.body, { color: colors.textSecondary }]}>Years</Text>
         )}
         <View style={styles.topBarActions}>
+          {/* Grid ⇄ week-list toggle (developer request 2026-08-02). */}
+          <Pressable
+            onPress={() => setWeekView((w) => !w)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityState={{ selected: weekView }}
+            accessibilityLabel={weekView ? 'Show month grid' : 'Show week list'}>
+            <IconSymbol
+              name={weekView ? 'calendar' : 'list.bullet'}
+              size={24}
+              color={colors.accent}
+            />
+          </Pressable>
           <Pressable
             onPress={() => router.push('/import-events')}
             hitSlop={10}
@@ -504,6 +521,9 @@ export default function CalendarScreen() {
         </View>
       </View>
 
+      {weekView ? (
+        renderWeekList()
+      ) : (
       <Animated.View style={[styles.zoomContainer, zoomStyle]}>
       {mode === 'month' ? (
         <FlatList
@@ -542,8 +562,137 @@ export default function CalendarScreen() {
         />
       )}
       </Animated.View>
+      )}
     </View>
   );
+
+  // ------------------------- Week list view -------------------------
+  // All 7 days of a week down the page: each day's schedule (events) first,
+  // tasks beneath (developer design 2026-08-02). Tap a day header to open
+  // the normal day timeline; ‹ › move whole weeks.
+  function renderWeekList() {
+    const days = weekDates(today, weekOffset);
+    const first = days[0];
+    const last = days[6];
+    const rangeLabel = `${first.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    return (
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
+        <View style={[styles.weekNav, { paddingVertical: space.s2 }]}>
+          <Pressable
+            onPress={() => setWeekOffset((w) => w - 1)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Previous week">
+            <IconSymbol name="chevron.left" size={20} color={colors.accent} />
+          </Pressable>
+          <Pressable
+            onPress={() => setWeekOffset(0)}
+            accessibilityRole="button"
+            accessibilityLabel="Jump to this week">
+            <Text style={[type.h2, { color: weekOffset === 0 ? colors.textPrimary : colors.accent }]}>
+              {rangeLabel}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setWeekOffset((w) => w + 1)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Next week">
+            <IconSymbol name="chevron.right" size={20} color={colors.accent} />
+          </Pressable>
+        </View>
+
+        {days.map((date) => {
+          const key = localDateKey(date);
+          const dayTasks = (byDay.get(key) ?? []).filter((t) => !t.deletedAt);
+          const dayEvents = (eventDays.get(key) ?? []).slice().sort((a, b) => a.start.getTime() - b.start.getTime());
+          const isToday = key === todayKey;
+          return (
+            <View key={key} style={{ marginBottom: space.s3 }}>
+              <Pressable
+                onPress={(event) =>
+                  router.push({
+                    pathname: '/day/[date]',
+                    params: {
+                      date: key,
+                      ax: String(Math.round(event.nativeEvent.pageX)),
+                      ay: String(Math.round(event.nativeEvent.pageY)),
+                    },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${date.toDateString()}`}
+                style={[styles.weekDayHeader, { borderBottomColor: isToday ? colors.accent : colors.borderSubtle }]}>
+                <Text style={[type.h2, { color: isToday ? colors.accent : colors.textPrimary }]}>
+                  {date.toLocaleDateString(undefined, { weekday: 'long' })}
+                </Text>
+                <Text style={{ fontFamily: monoFont, fontSize: 12, color: isToday ? colors.accent : colors.textTertiary }}>
+                  {date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </Text>
+              </Pressable>
+
+              {dayEvents.length === 0 && dayTasks.length === 0 ? (
+                <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400', paddingVertical: space.s2 }]}>
+                  Nothing scheduled.
+                </Text>
+              ) : (
+                <View style={{ gap: 6, paddingTop: space.s2 }}>
+                  {dayEvents.map((e) => (
+                    <Pressable
+                      key={`e-${e.id}`}
+                      onPress={() => router.push(`/event/${e.id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Event ${e.title}`}
+                      style={[styles.weekRowItem, { backgroundColor: colors.surfaceElevated, borderColor: colors.borderSubtle }]}>
+                      <View style={[styles.weekRowBar, { backgroundColor: e.color ?? colors.statusEventAccent }]} />
+                      <Text numberOfLines={1} style={[type.body, { color: colors.textPrimary, flex: 1 }]}>
+                        {e.title}
+                      </Text>
+                      <Text style={{ fontFamily: monoFont, fontSize: 11, color: readableTextColor(e.color ?? colors.statusEventAccent, isDark, isDark ? 4.5 : 7) }}>
+                        {e.allDay
+                          ? 'All day'
+                          : e.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                      </Text>
+                    </Pressable>
+                  ))}
+                  {dayTasks.map((t) => {
+                    const bar = taskBarColors(t);
+                    return (
+                      <Pressable
+                        key={`t-${t.id}`}
+                        onPress={() => router.push(`/task/${t.id}`)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Task ${t.title}`}
+                        style={[styles.weekRowItem, { backgroundColor: colors.surfaceElevated, borderColor: colors.borderSubtle }]}>
+                        <View style={[styles.weekRowBar, { backgroundColor: bar.accent }]} />
+                        <Text
+                          numberOfLines={1}
+                          style={[
+                            type.body,
+                            {
+                              color: bar.done ? colors.textTertiary : colors.textPrimary,
+                              textDecorationLine: bar.done ? 'line-through' : 'none',
+                              flex: 1,
+                            },
+                          ]}>
+                          {t.title}
+                        </Text>
+                        <Text style={{ fontFamily: monoFont, fontSize: 11, color: colors.textTertiary }}>
+                          {t.dueDate?.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -554,6 +703,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  weekNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weekDayHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1.5,
+    paddingBottom: 4,
+  },
+  weekRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingRight: 10,
+    minHeight: 40,
+    overflow: 'hidden',
+  },
+  weekRowBar: { width: 3, alignSelf: 'stretch' },
   yearButton: {
     flexDirection: 'row',
     alignItems: 'center',

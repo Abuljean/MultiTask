@@ -69,3 +69,16 @@ export function tasksByDay(tasks: Task[]): Map<string, Task[]> {
   }
   return byDay;
 }
+
+/** The 7 dates (Sunday-start, matching the month grid) of the week that is
+ *  `weekOffset` weeks away from the week containing `anchor`. */
+export function weekDates(anchor: Date, weekOffset = 0): Date[] {
+  const start = new Date(anchor);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay() + weekOffset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}

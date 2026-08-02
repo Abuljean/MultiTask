@@ -301,17 +301,26 @@ export default function ImportEventsScreen() {
           Applies to rows without their own color column.
         </Text>
 
-        <Pressable
-          onPress={pickFile}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: colors.accent, borderRadius: radius.button, opacity: pressed ? 0.85 : 1 },
-          ]}>
-          <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>
-            {fileName ? 'Choose a different file' : 'Choose CSV file'}
-          </Text>
-        </Pressable>
+        {/* ONE filled primary at a time (rule 3, deferred #2): before a file
+            is parsed the pick button is the primary; after, Import takes
+            over and re-picking demotes to a text link. */}
+        {fileName ? (
+          <Pressable onPress={pickFile} accessibilityRole="button" style={{ paddingVertical: space.s1 }}>
+            <Text style={[type.body, { color: colors.accent }]}>Choose a different file</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={pickFile}
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: colors.accent, borderRadius: radius.button, opacity: pressed ? 0.85 : 1 },
+            ]}>
+            <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>
+              Choose CSV file
+            </Text>
+          </Pressable>
+        )}
 
         {parsed && (
           <View style={{ gap: space.s2 }}>

@@ -118,12 +118,17 @@ export default function EventDetailScreen() {
   const timeColor = event.color ? readableTextColor(event.color, isDark) : colors.statusEventAccent;
 
   return (
-    <View style={styles.container} pointerEvents={dismissing ? 'none' : 'auto'}>
+    <View
+      style={[styles.container, Platform.OS === 'web' && styles.containerWeb]}
+      pointerEvents={dismissing ? 'none' : 'auto'}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close event" />
       <Animated.View
         style={[
           sheetStyle,
+          // Desktop/web: centered dialog like every other sheet (polish
+          // pass 2026-08-02 — this one was still a full-width bottom sheet).
+          Platform.OS === 'web' && styles.sheetWeb,
           {
             backgroundColor: colors.surfaceElevated,
             borderTopWidth: 1.5,
@@ -136,6 +141,11 @@ export default function EventDetailScreen() {
             padding: space.s4,
             paddingBottom: Math.max(insets.bottom, space.s4),
             gap: space.s3,
+          },
+          Platform.OS === 'web' && {
+            borderBottomWidth: 1.5,
+            borderBottomLeftRadius: radius.card,
+            borderBottomRightRadius: radius.card,
           },
         ]}>
         <Text style={[type.h2, { color: colors.textPrimary }]}>{event.title}</Text>
@@ -179,6 +189,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  containerWeb: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  sheetWeb: {
+    width: '100%',
+    maxWidth: 560,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

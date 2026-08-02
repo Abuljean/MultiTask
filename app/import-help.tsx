@@ -4,7 +4,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -72,12 +72,15 @@ export default function ImportHelpScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, Platform.OS === 'web' && styles.containerWeb]}>
       <Animated.View style={[styles.backdrop, backdropStyle]} />
       <Pressable style={styles.backdropTouch} onPress={close} accessibilityLabel="Close help" />
       <Animated.View
         style={[
           sheetStyle,
+          // Desktop/web: centered dialog like every other sheet (polish
+          // pass 2026-08-02).
+          Platform.OS === 'web' && styles.sheetWeb,
           {
             backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: radius.card,
@@ -85,6 +88,11 @@ export default function ImportHelpScreen() {
             padding: space.s4,
             paddingBottom: Math.max(insets.bottom, space.s4),
             maxHeight: screenHeight * 0.85,
+          },
+          Platform.OS === 'web' && {
+            borderBottomLeftRadius: radius.card,
+            borderBottomRightRadius: radius.card,
+            borderColor: colors.borderSubtle,
           },
         ]}>
         <ScrollView showsVerticalScrollIndicator={false} bounces={false} contentContainerStyle={{ gap: space.s3 }}>
@@ -139,6 +147,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  containerWeb: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  sheetWeb: {
+    width: '100%',
+    maxWidth: 640,
+    borderWidth: 1,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

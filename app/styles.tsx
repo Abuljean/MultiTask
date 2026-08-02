@@ -116,8 +116,7 @@ export default function StylesScreen() {
             More styles coming soon
           </Text>
           <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400' }]}>
-            New looks for your tasks — cards, colors, and animations. Styles are curated: only
-            packs published by Multitask and approved artists appear here.
+            Only packs reviewed and signed by Multitask appear here.
           </Text>
         </View>
       </Animated.View>

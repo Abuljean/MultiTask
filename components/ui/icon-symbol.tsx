@@ -37,6 +37,7 @@ const MAPPING = {
   'eye.slash': 'visibility-off',
   circle: 'radio-button-unchecked',
   'list.bullet': 'format-list-bulleted',
+  'clock.fill': 'schedule',
 } as IconMapping;
 
 /**

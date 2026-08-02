@@ -93,15 +93,26 @@ export function TaskCard({ task, onToggleComplete, onDelete, onPress, onLongPres
         </Text>
 
         <View style={[styles.dueRow, { gap: space.s1 }]}>
+          {/* Non-color status cues (rule 1): overdue = warning triangle,
+              urgent = clock (polish pass 2026-08-02 — urgent was the one
+              state distinguished by color alone). */}
           {status === 'overdue' && (
             <IconSymbol name="exclamationmark.triangle.fill" size={12} color={colors.statusOverdueAccent} />
+          )}
+          {status === 'urgent' && (
+            <IconSymbol name="clock.fill" size={12} color={colors.statusUrgentAccent} />
           )}
           <Text
             style={{
               fontFamily: monoFont,
               fontSize: 12,
               lineHeight: 16,
-              color: status === 'overdue' ? colors.statusOverdueAccent : colors.textSecondary,
+              color:
+                status === 'overdue'
+                  ? colors.statusOverdueAccent
+                  : status === 'urgent'
+                    ? colors.statusUrgentAccent
+                    : colors.textSecondary,
             }}>
             {task.dueDate ? formatDueDate(task.dueDate) : 'No due date'}
           </Text>

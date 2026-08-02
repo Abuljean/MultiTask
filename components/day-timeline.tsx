@@ -245,6 +245,9 @@ export function DayTimeline(props: Props) {
                         color={colors.statusOverdueAccent}
                       />
                     )}
+                    {!done && status === 'urgent' && (
+                      <IconSymbol name="clock.fill" size={10} color={colors.statusUrgentAccent} />
+                    )}
                     <Text
                       style={{
                         fontFamily: monoFont,

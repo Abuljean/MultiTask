@@ -151,7 +151,14 @@ function NewOptionCreator({ placeholder, onCreate }: { placeholder: string; onCr
           value={name}
           onChangeText={setName}
           returnKeyType="done"
-          onSubmitEditing={create}
+          // Enter commits THE BADGE, never the task (developer report
+          // 2026-08-02). blurOnSubmit={false} keeps the event contained —
+          // the keyboard stays put and no follow-on submit can fire.
+          blurOnSubmit={false}
+          onSubmitEditing={(event) => {
+            event.preventDefault?.();
+            create();
+          }}
         />
         <Pressable
           onPress={create}

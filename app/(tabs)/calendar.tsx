@@ -96,8 +96,10 @@ export default function CalendarScreen() {
   const [weekView, setWeekView] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   // Tapping the week range opens a jump-to-week picker (developer request
-  // 2026-08-02).
+  // 2026-08-02). It opens SCROLLED TO the week you're viewing — not the top
+  // of the list (developer follow-up).
   const [weekPickerOpen, setWeekPickerOpen] = useState(false);
+  const weekPickerScrollRef = useRef<ScrollView>(null);
   // Week-to-week travel is the same full page swipe as the day view
   // (developer direction 2026-08-02): chevrons or a horizontal swipe.
   const weekPager = usePageSlide();
@@ -740,6 +742,7 @@ export default function CalendarScreen() {
   // rides the same page-slide as the chevrons.
   function renderWeekPicker() {
     const offsets = Array.from({ length: 29 }, (_, i) => i - 8); // 8 back, 20 ahead
+    const ROW_HEIGHT = 44;
     const relativeLabel = (o: number) =>
       o === 0 ? 'This week' : o === 1 ? 'Next week' : o === -1 ? 'Last week' : null;
     return (
@@ -759,7 +762,18 @@ export default function CalendarScreen() {
               paddingVertical: space.s2,
             },
           ]}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            ref={weekPickerScrollRef}
+            showsVerticalScrollIndicator={false}
+            onLayout={(event) => {
+              // Center the CURRENT week in the viewport on open.
+              const viewport = event.nativeEvent.layout.height;
+              const index = weekOffset + 8;
+              weekPickerScrollRef.current?.scrollTo({
+                y: Math.max(0, index * ROW_HEIGHT - viewport / 2 + ROW_HEIGHT / 2),
+                animated: false,
+              });
+            }}>
             {offsets.map((o) => {
               const days = weekDates(today, o);
               const label = `${days[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
@@ -856,7 +870,8 @@ const styles = StyleSheet.create({
     maxHeight: '62%',
   },
   pickerRow: {
-    minHeight: 44,
+    // Fixed height — the open-centered scroll math depends on it.
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

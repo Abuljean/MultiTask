@@ -15,34 +15,34 @@ const isWeb = Platform.OS === 'web';
 const SECTIONS: { title: string; body: string; webBody?: string }[] = [
   {
     title: 'Add a task fast',
-    body: 'Tap the + button. A task only needs a title and a time — everything else (category, subject, priority, notes) lives under Details. Long-press a category or subject chip there to delete it.',
+    body: 'Tap the + button. A task only needs a title and a time. Everything else, like category, subject, priority, and notes, lives under Details. Long-press a category or subject chip there to delete it.',
     webBody: 'Click the + button. A task only needs a title and a time — everything else (category, subject, priority, notes) lives under Details. Long-press a category or subject chip there to delete it.',
   },
   {
     title: 'Complete and delete by swiping',
-    body: 'Swipe a task right to complete it, left to delete. Every action shows an undo for 5 seconds. Completed tasks collect at the top; "Clear all" moves them to the trash in one go.',
+    body: 'Swipe a task right to complete it, left to delete. Every action shows an undo for 5 seconds. Completed tasks collect at the top, and "Clear all" moves them to the trash in one go.',
     webBody: 'Hover a task and use the edge zones: right side completes, left side deletes. Every action shows an undo for 5 seconds. Completed tasks collect at the top; "Clear all" moves them to the trash in one go.',
   },
   {
     title: 'Colors mean status',
-    body: 'Green = ongoing, orange = urgent (inside your urgency window — set it in Settings), red = overdue. The same colors run through the whole app: cards, calendar, widgets.',
+    body: 'Green means ongoing. Orange means urgent, which is anything inside your urgency window (set it in Settings). Red means overdue. The same colors run through the whole app: cards, calendar, widgets.',
   },
   {
     title: 'Daily',
-    body: 'Recurring tasks that reset every day (medication, practice, review). Check them off today; they come back tomorrow. Deliberately kept off the calendar.',
+    body: 'Recurring tasks that reset every day, like medication or practice. Check them off today and they come back tomorrow. They stay off the calendar on purpose.',
   },
   {
     title: 'Calendar',
-    body: 'Month view with your tasks and events; tap the year to zoom out. Tap any day for its timeline — events on the left sized by duration, tasks lined up by time with one-tap complete.',
+    body: 'Month view with your tasks and events. Tap the year to zoom out. Tap any day for its timeline, where events are sized by length and tasks line up by time with one-tap complete.',
   },
   {
     title: 'Import your schedule',
-    body: 'Calendar → the tray icon imports a CSV. The built-in AI prompt makes one from a pasted schedule and asks about anything missing. Each row can become a read-only event or a real task — your pick, per row if you want.',
+    body: 'Calendar → the tray icon imports a CSV. The built-in AI prompt makes one from a pasted schedule and asks about anything missing. Each row can become a read-only event or a real task. Your pick, even per row.',
   },
   {
     title: 'Search and filter',
-    body: 'Pull down a little on the task list to reveal search; Filter narrows by urgency, category, or subject.',
-    webBody: 'The search bar is always at the top of Tasks; Filter narrows by urgency, category, or subject.',
+    body: 'Pull down a little on the task list to open search. Filter narrows by urgency, category, or subject.',
+    webBody: 'The search bar is always at the top of Tasks. Filter narrows by urgency, category, or subject.',
   },
   {
     title: 'Works offline',
@@ -55,7 +55,7 @@ const SECTIONS: { title: string; body: string; webBody?: string }[] = [
   },
   {
     title: 'Coming from the old website?',
-    body: 'Sign up here with the SAME email you used on the old site and confirm it — your existing tasks link to the new account automatically. The old site keeps working during the transition.',
+    body: 'Sign up here with the SAME email you used on the old site and confirm it. Your existing tasks link to the new account automatically. The old site keeps working during the transition.',
   },
   {
     title: 'Make it yours',

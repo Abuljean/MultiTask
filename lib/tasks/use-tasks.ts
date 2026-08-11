@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '@/lib/supabase';
 import { placeholders, syncDb } from '@/lib/sync/system';
 import { newNumericId } from '@/lib/sync/ids';
+import { emitTourEvent } from '@/lib/tour/events';
 import { formatWallClock } from './dates';
 import {
   DEFAULT_CATEGORY,
@@ -155,8 +156,9 @@ export function useCreateTask() {
       if (error) throw error;
       return toTask(data as TaskRow);
     },
-    onMutate: ({ input, tempId }) =>
-      applyOptimistic(queryClient, (tasks) => [
+    onMutate: ({ input, tempId }) => {
+      emitTourEvent('task-created');
+      return applyOptimistic(queryClient, (tasks) => [
         ...tasks,
         {
           id: tempId,
@@ -172,7 +174,8 @@ export function useCreateTask() {
           priority: input.priority ?? null,
           deletedAt: null,
         },
-      ]),
+      ]);
+    },
     onSuccess: (createdTask, { tempId }) =>
       queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
         old?.map((t) => (t.id === tempId ? createdTask : t))
@@ -364,8 +367,12 @@ export function useSetTaskCompleted() {
       const { error } = await supabase.from('task').update({ is_completed: isCompleted }).eq('task_id', id);
       if (error) throw error;
     },
-    onMutate: ({ id, isCompleted }) =>
-      applyOptimistic(queryClient, (tasks) => tasks.map((t) => (t.id === id ? { ...t, isCompleted } : t))),
+    onMutate: ({ id, isCompleted }) => {
+      emitTourEvent(isCompleted ? 'task-completed' : 'task-uncompleted');
+      return applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) => (t.id === id ? { ...t, isCompleted } : t))
+      );
+    },
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => settleInvalidate(queryClient),
   });
@@ -389,10 +396,12 @@ export function useDeleteTask() {
         .eq('task_id', id);
       if (error) throw error;
     },
-    onMutate: (id) =>
-      applyOptimistic(queryClient, (tasks) =>
+    onMutate: (id) => {
+      emitTourEvent('task-deleted');
+      return applyOptimistic(queryClient, (tasks) =>
         tasks.map((t) => (t.id === id ? { ...t, deletedAt: new Date() } : t))
-      ),
+      );
+    },
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => settleInvalidate(queryClient),
   });

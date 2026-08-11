@@ -1,39 +1,58 @@
-// Tour plumbing: anchors register their layout by id; the overlay reads
-// them. Kept dependency-free (no reanimated) — the spotlight is plain Views,
+// Tour plumbing (v2): anchors register a live MEASURE FUNCTION, not a cached
+// rect — the overlay measures the real element the moment its step shows (and
+// retries while tabs mount), so highlights can't go stale after scrolls or
+// tab switches (the v1 bug). Dependency-free — the spotlight is plain Views,
 // so it can never fight the screens it sits over.
-import { createContext, ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { View, type LayoutRectangle } from 'react-native';
 
 type Rect = LayoutRectangle;
+type MeasureFn = () => Promise<Rect | null>;
 
 type TourContextValue = {
   active: boolean;
   start: () => void;
   stop: () => void;
-  registerAnchor: (id: string, rect: Rect) => void;
-  getAnchor: (id: string) => Rect | null;
+  registerAnchor: (id: string, measure: MeasureFn) => () => void;
+  measureAnchor: (id: string) => Promise<Rect | null>;
+  /** Bumps when anchors mount — lets the overlay retry a missing anchor. */
+  anchorVersion: number;
 };
 
 const TourContext = createContext<TourContextValue | null>(null);
 
+function measureView(ref: React.RefObject<View | null>): Promise<Rect | null> {
+  return new Promise((resolve) => {
+    const node = ref.current;
+    if (!node) return resolve(null);
+    node.measureInWindow((x, y, width, height) => {
+      resolve(width > 0 && height > 0 ? { x, y, width, height } : null);
+    });
+  });
+}
+
 export function TourProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState(false);
-  const anchors = useRef(new Map<string, Rect>());
-  // Bumping this after registrations lets the overlay re-read rects without
-  // re-measuring on a timer.
-  const [, setVersion] = useState(0);
+  const anchors = useRef(new Map<string, MeasureFn>());
+  const [anchorVersion, setAnchorVersion] = useState(0);
 
-  const registerAnchor = useCallback((id: string, rect: Rect) => {
-    anchors.current.set(id, rect);
-    setVersion((v) => v + 1);
+  const registerAnchor = useCallback((id: string, measure: MeasureFn) => {
+    anchors.current.set(id, measure);
+    setAnchorVersion((v) => v + 1);
+    return () => {
+      if (anchors.current.get(id) === measure) anchors.current.delete(id);
+    };
   }, []);
-  const getAnchor = useCallback((id: string) => anchors.current.get(id) ?? null, []);
+  const measureAnchor = useCallback(async (id: string) => {
+    const measure = anchors.current.get(id);
+    return measure ? measure() : null;
+  }, []);
   const start = useCallback(() => setActive(true), []);
   const stop = useCallback(() => setActive(false), []);
 
   const value = useMemo(
-    () => ({ active, start, stop, registerAnchor, getAnchor }),
-    [active, start, stop, registerAnchor, getAnchor]
+    () => ({ active, start, stop, registerAnchor, measureAnchor, anchorVersion }),
+    [active, start, stop, registerAnchor, measureAnchor, anchorVersion]
   );
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }
@@ -44,38 +63,35 @@ export function useTour(): TourContextValue {
   return ctx;
 }
 
-/** Ref+onLayout pair that registers ANY element (incl. absolutely-positioned
- *  ones like the FAB, where a wrapper View would break layout) as a tour
- *  anchor. Safe to call outside a TourProvider — becomes a no-op. */
+/** Ref+onLayout pair for anchoring elements a wrapper View would break
+ *  (absolutely-positioned ones like the FAB). Registers a live measure
+ *  function. Safe outside a TourProvider — becomes a no-op. */
 export function useTourAnchor(id: string): {
   ref: React.RefObject<View | null>;
   onLayout: () => void;
 } {
   const ctx = useContext(TourContext);
   const ref = useRef<View>(null);
+  const registered = useRef(false);
   const onLayout = useCallback(() => {
-    if (!ctx) return;
-    ref.current?.measureInWindow((x, y, width, height) => {
-      if (width > 0 && height > 0) ctx.registerAnchor(id, { x, y, width, height });
-    });
+    if (!ctx || registered.current) return;
+    registered.current = true;
+    ctx.registerAnchor(id, () => measureView(ref));
   }, [ctx, id]);
   return { ref, onLayout };
 }
 
-/** Wrap any element to make it spotlightable. Measures in WINDOW coords so
- *  the overlay (which fills the window) can cut a hole exactly over it. */
+/** Wrap any element to make it spotlightable. The overlay measures it in
+ *  WINDOW coords right when its step shows. */
 export function TourAnchor({ id, children }: { id: string; children: ReactNode }) {
   const { registerAnchor } = useTour();
   const ref = useRef<View>(null);
+  useEffect(
+    () => registerAnchor(id, () => measureView(ref)),
+    [id, registerAnchor]
+  );
   return (
-    <View
-      ref={ref}
-      collapsable={false}
-      onLayout={() => {
-        ref.current?.measureInWindow((x, y, width, height) => {
-          if (width > 0 && height > 0) registerAnchor(id, { x, y, width, height });
-        });
-      }}>
+    <View ref={ref} collapsable={false}>
       {children}
     </View>
   );

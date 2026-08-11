@@ -22,7 +22,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useTourAnchor } from '@/components/tour/tour-context';
+import { TourAnchor, useTourAnchor } from '@/components/tour/tour-context';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
@@ -497,26 +497,32 @@ export default function CalendarScreen() {
           <Text style={[type.body, { color: colors.textSecondary }]}>Years</Text>
         )}
         <View style={styles.topBarActions}>
-          {/* Grid ⇄ week-list toggle (developer request 2026-08-02). */}
-          <Pressable
-            onPress={() => setWeekView((w) => !w)}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityState={{ selected: weekView }}
-            accessibilityLabel={weekView ? 'Show month grid' : 'Show week list'}>
-            <IconSymbol
-              name={weekView ? 'calendar' : 'list.bullet'}
-              size={24}
-              color={colors.accent}
-            />
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/import-events')}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Import calendar events">
-            <IconSymbol name="tray.and.arrow.down" size={24} color={colors.accent} />
-          </Pressable>
+          {/* Week toggle + import share one tour anchor ("Week list and
+              imports" step rings both). */}
+          <TourAnchor id="calendar-tools">
+            <View style={styles.topBarActions}>
+              {/* Grid ⇄ week-list toggle (developer request 2026-08-02). */}
+              <Pressable
+                onPress={() => setWeekView((w) => !w)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityState={{ selected: weekView }}
+                accessibilityLabel={weekView ? 'Show month grid' : 'Show week list'}>
+                <IconSymbol
+                  name={weekView ? 'calendar' : 'list.bullet'}
+                  size={24}
+                  color={colors.accent}
+                />
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/import-events')}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Import calendar events">
+                <IconSymbol name="tray.and.arrow.down" size={24} color={colors.accent} />
+              </Pressable>
+            </View>
+          </TourAnchor>
           <ThemeToggleButton />
         </View>
       </View>

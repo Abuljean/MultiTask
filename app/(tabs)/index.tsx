@@ -381,9 +381,33 @@ export default function TaskListScreen() {
           ItemSeparatorComponent={() => <View style={{ height: space.s3 }} />}
           SectionSeparatorComponent={() => <View style={{ height: space.s2 }} />}
           ListEmptyComponent={
-            <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s6 }]}>
-              {searching ? 'No matching tasks.' : 'No tasks yet.'}
-            </Text>
+            searching ? (
+              <Text style={[type.body, { color: colors.textSecondary, marginTop: space.s6 }]}>
+                No matching tasks.
+              </Text>
+            ) : (
+              // A clear list is an achievement, not an absence (developer
+              // request 2026-08-02): small centered graphic + warm line.
+              <View style={{ alignItems: 'center', gap: space.s3, marginTop: space.s8 * 2 }}>
+                <View
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 36,
+                    borderWidth: 2,
+                    borderColor: colors.statusOngoingAccent,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.statusOngoingBg,
+                  }}>
+                  <IconSymbol name="checkmark" size={34} color={colors.statusOngoingAccent} />
+                </View>
+                <Text style={[type.h2, { color: colors.textPrimary }]}>All clear</Text>
+                <Text style={[type.body, { color: colors.textSecondary, textAlign: 'center' }]}>
+                  Nothing is waiting on you. Add the next thing with +.
+                </Text>
+              </View>
+            )
           }
         />
       )}

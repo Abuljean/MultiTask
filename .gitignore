@@ -47,3 +47,6 @@ example
 /ios
 /android
 .claude/
+
+# Developer screenshot drops for AI sessions - not project files
+Ai Uploads/

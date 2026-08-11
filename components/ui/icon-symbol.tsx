@@ -38,6 +38,9 @@ const MAPPING = {
   circle: 'radio-button-unchecked',
   'list.bullet': 'format-list-bulleted',
   'clock.fill': 'schedule',
+  // Week-list toggle: stacked agenda rows (list.bullet read as "notepad" —
+  // developer feedback 2026-08-02).
+  'calendar.day.timeline.left': 'view-agenda',
 } as IconMapping;
 
 /**

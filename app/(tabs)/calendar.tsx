@@ -95,6 +95,9 @@ export default function CalendarScreen() {
   // Grid ⇄ week-list toggle (developer request 2026-08-02).
   const [weekView, setWeekView] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  // Tapping the week range opens a jump-to-week picker (developer request
+  // 2026-08-02).
+  const [weekPickerOpen, setWeekPickerOpen] = useState(false);
   // Week-to-week travel is the same full page swipe as the day view
   // (developer direction 2026-08-02): chevrons or a horizontal swipe.
   const weekPager = usePageSlide();
@@ -498,6 +501,17 @@ export default function CalendarScreen() {
           <Pressable
             onPress={() => {
               const visible = visibleMonthRef.current;
+              if (weekView) {
+                // From the week LIST there's no month grid on screen to zoom
+                // out of — leave week view and arrive at years with a
+                // centered zoom (a cell-anchored origin here pointed at an
+                // unmounted grid and threw on web; developer report).
+                setWeekView(false);
+                switchMode('year', 'out', null, () => {
+                  setAnchor(visible);
+                });
+                return;
+              }
               switchMode('year', 'out', yearBlockCenter(visible.month), () => {
                 setAnchor(visible);
               });
@@ -524,7 +538,7 @@ export default function CalendarScreen() {
                 accessibilityState={{ selected: weekView }}
                 accessibilityLabel={weekView ? 'Show month grid' : 'Show week list'}>
                 <IconSymbol
-                  name={weekView ? 'calendar' : 'list.bullet'}
+                  name={weekView ? 'calendar' : 'calendar.day.timeline.left'}
                   size={24}
                   color={colors.accent}
                 />
@@ -542,6 +556,7 @@ export default function CalendarScreen() {
         </View>
       </View>
 
+      {weekView && weekPickerOpen && renderWeekPicker()}
       {weekView ? (
         renderWeekList()
       ) : (
@@ -611,9 +626,9 @@ export default function CalendarScreen() {
             <IconSymbol name="chevron.left" size={20} color={colors.accent} />
           </Pressable>
           <Pressable
-            onPress={() => goToWeek(-weekOffset)}
+            onPress={() => setWeekPickerOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Jump to this week">
+            accessibilityLabel="Pick a week">
             <Text style={[type.h2, { color: weekOffset === 0 ? colors.textPrimary : colors.accent }]}>
               {rangeLabel}
             </Text>
@@ -720,6 +735,80 @@ export default function CalendarScreen() {
       </GestureDetector>
     );
   }
+
+  // Jump-to-week picker: a light overlay listing nearby weeks. Picking one
+  // rides the same page-slide as the chevrons.
+  function renderWeekPicker() {
+    const offsets = Array.from({ length: 29 }, (_, i) => i - 8); // 8 back, 20 ahead
+    const relativeLabel = (o: number) =>
+      o === 0 ? 'This week' : o === 1 ? 'Next week' : o === -1 ? 'Last week' : null;
+    return (
+      <View style={[StyleSheet.absoluteFill, styles.pickerRoot]}>
+        <Pressable
+          style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)' }]}
+          onPress={() => setWeekPickerOpen(false)}
+          accessibilityLabel="Close week picker"
+        />
+        <View
+          style={[
+            styles.pickerCard,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.borderSubtle,
+              borderRadius: 16,
+              paddingVertical: space.s2,
+            },
+          ]}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {offsets.map((o) => {
+              const days = weekDates(today, o);
+              const label = `${days[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+              const relative = relativeLabel(o);
+              const selected = o === weekOffset;
+              return (
+                <Pressable
+                  key={o}
+                  onPress={() => {
+                    setWeekPickerOpen(false);
+                    goToWeek(o - weekOffset);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Week of ${label}`}
+                  style={({ pressed }) => [
+                    styles.pickerRow,
+                    {
+                      paddingHorizontal: space.s4,
+                      backgroundColor: selected
+                        ? colors.surfaceSunken
+                        : pressed
+                          ? colors.surface
+                          : 'transparent',
+                    },
+                  ]}>
+                  <Text
+                    style={[
+                      type.body,
+                      {
+                        color: selected ? colors.accent : colors.textPrimary,
+                        fontWeight: selected ? '600' : '400',
+                      },
+                    ]}>
+                    {label}
+                  </Text>
+                  {relative && (
+                    <Text style={[type.caption, { color: colors.textTertiary, fontWeight: '400' }]}>
+                      {relative}
+                    </Text>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -753,6 +842,26 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   weekRowBar: { width: 3, alignSelf: 'stretch' },
+  pickerRoot: {
+    zIndex: 100,
+    elevation: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  pickerCard: {
+    borderWidth: 1,
+    width: '100%',
+    maxWidth: 360,
+    maxHeight: '62%',
+  },
+  pickerRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   yearButton: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -16,6 +16,7 @@ import { EventCard } from '@/components/event-card';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTaskActions } from '@/hooks/use-task-actions';
+import { isReduceMotionEnabled } from '@/lib/reduced-motion';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
@@ -160,11 +161,39 @@ export default function DayScreen() {
 
   // Prev/next day: update the route param in place — the screen stays
   // mounted (no re-zoom), everything derived from `date` recomputes.
+  // Day-to-day travel slides directionally (developer request 2026-08-02):
+  // content eases out the way you're going, the new day eases in from the
+  // other side. Short and interruption-safe — the param swap happens at the
+  // midpoint, so a janked frame can only shorten the motion, never block it.
+  const daySlide = useSharedValue(0);
+  const dayFade = useSharedValue(1);
+
+  function applyDay(next: Date) {
+    router.setParams({ date: localDateKey(next) });
+  }
+
   function goToDay(delta: number) {
     const next = new Date(day);
     next.setDate(next.getDate() + delta);
-    router.setParams({ date: localDateKey(next) });
+    if (isReduceMotionEnabled()) {
+      applyDay(next);
+      return;
+    }
+    const travel = 56 * delta;
+    daySlide.value = withTiming(-travel, { duration: 110, easing: Easing.in(Easing.cubic) });
+    dayFade.value = withTiming(0, { duration: 110 });
+    setTimeout(() => {
+      applyDay(next);
+      daySlide.value = travel;
+      daySlide.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.cubic) });
+      dayFade.value = withTiming(1, { duration: 170 });
+    }, 115);
   }
+
+  const daySlideStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: daySlide.value }],
+    opacity: dayFade.value,
+  }));
 
   // Phones: swipe the page horizontally to change days. Wide layouts keep
   // arrows only — task cards there swipe horizontally themselves, and two
@@ -204,6 +233,9 @@ export default function DayScreen() {
               <Text style={[type.body, { color: colors.accent, fontWeight: '600' }]}>Calendar</Text>
             </Pressable>
           </View>
+          {/* Everything date-derived (title + timeline) slides as one unit
+              when changing days — the header/back button stays put. */}
+          <Animated.View style={[styles.dayContent, daySlideStyle]}>
           {/* Title row with prev/next-day arrows (developer request
               2026-08-02); phones can also swipe the page left/right. */}
           <View style={[pageContent, styles.titleRow, { paddingHorizontal: space.s4, paddingBottom: space.s3 }]}>
@@ -340,6 +372,7 @@ export default function DayScreen() {
               )}
             </ScrollView>
           </GestureDetector>
+          </Animated.View>
         </View>
       </GestureDetector>
     </Animated.View>
@@ -363,6 +396,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  dayContent: { flex: 1 },
   dayNav: { flexDirection: 'row', gap: 8 },
   dayNavButton: {
     width: 36,

@@ -676,7 +676,9 @@ export default function CalendarScreen() {
                       <Text style={{ fontFamily: monoFont, fontSize: 11, color: readableTextColor(e.color ?? colors.statusEventAccent, isDark, isDark ? 4.5 : 7) }}>
                         {e.allDay
                           ? 'All day'
-                          : e.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                          : e.end
+                            ? `${e.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} – ${e.end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+                            : e.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                       </Text>
                     </Pressable>
                   ))}

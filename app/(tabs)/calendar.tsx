@@ -18,11 +18,13 @@ import {
   type ViewToken,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { TourAnchor, useTourAnchor } from '@/components/tour/tour-context';
+import { usePageSlide } from '@/hooks/use-page-slide';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
@@ -93,6 +95,19 @@ export default function CalendarScreen() {
   // Grid ⇄ week-list toggle (developer request 2026-08-02).
   const [weekView, setWeekView] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
+  // Week-to-week travel is the same full page swipe as the day view
+  // (developer direction 2026-08-02): chevrons or a horizontal swipe.
+  const weekPager = usePageSlide();
+  function goToWeek(delta: number) {
+    weekPager.go(delta, () => setWeekOffset((w) => w + delta));
+  }
+  const weekSwipe = Gesture.Pan()
+    .activeOffsetX([-24, 24])
+    .failOffsetY([-14, 14])
+    .onEnd((event) => {
+      if (event.translationX < -50) runOnJS(goToWeek)(1);
+      else if (event.translationX > 50) runOnJS(goToWeek)(-1);
+    });
   const [mode, setMode] = useState<'month' | 'year'>('month');
   // The month the month-list should open at (changed by the year view).
   const [anchor, setAnchor] = useState<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });
@@ -582,19 +597,21 @@ export default function CalendarScreen() {
     const last = days[6];
     const rangeLabel = `${first.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${last.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
     return (
+      <GestureDetector gesture={weekSwipe}>
+      <Animated.View nativeID="week-pager" style={[styles.zoomContainer, weekPager.style]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[pageContent, { paddingHorizontal: space.s4, paddingBottom: insets.bottom + space.s6 }]}>
         <View style={[styles.weekNav, { paddingVertical: space.s2 }]}>
           <Pressable
-            onPress={() => setWeekOffset((w) => w - 1)}
+            onPress={() => goToWeek(-1)}
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Previous week">
             <IconSymbol name="chevron.left" size={20} color={colors.accent} />
           </Pressable>
           <Pressable
-            onPress={() => setWeekOffset(0)}
+            onPress={() => goToWeek(-weekOffset)}
             accessibilityRole="button"
             accessibilityLabel="Jump to this week">
             <Text style={[type.h2, { color: weekOffset === 0 ? colors.textPrimary : colors.accent }]}>
@@ -602,7 +619,7 @@ export default function CalendarScreen() {
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => setWeekOffset((w) => w + 1)}
+            onPress={() => goToWeek(1)}
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Next week">
@@ -697,6 +714,8 @@ export default function CalendarScreen() {
           );
         })}
       </ScrollView>
+      </Animated.View>
+      </GestureDetector>
     );
   }
 }

@@ -64,18 +64,15 @@ export default function EventDetailScreen() {
   function close() {
     closing.current = true;
     setDismissing(true);
-    // WEB: the page under a modal is INERT until the route pops (react-
-    // navigation), so every ms of exit animation is time the user can't
-    // click the next card. 120ms reads as instant; native keeps its feel.
-    const exitMs = Platform.OS === 'web' ? 120 : 260;
-    backdropOpacity.value = withTiming(0, { duration: Math.min(220, exitMs) });
-    sheetOffset.value = withTiming(
-      screenHeight,
-      { duration: exitMs, easing: Easing.in(Easing.cubic) },
-      (finished) => {
-        if (finished) runOnJS(goBack)();
-      }
-    );
+    // The page under a modal is INERT until the route pops (react-navigation)
+    // — every ms of exit animation is time the user can't touch the page
+    // below. That's true on NATIVE too (developer report 2026-08-02: "click
+    // off an event, then can't swipe"). Short exits everywhere, and the pop
+    // rides a TIMER so a janked frame can't hold the page hostage.
+    const exitMs = Platform.OS === 'web' ? 120 : 160;
+    backdropOpacity.value = withTiming(0, { duration: exitMs });
+    sheetOffset.value = withTiming(screenHeight, { duration: exitMs, easing: Easing.in(Easing.cubic) });
+    setTimeout(goBack, exitMs + 10);
   }
 
   // Cache miss (event deleted elsewhere): nothing to show, leave quietly —

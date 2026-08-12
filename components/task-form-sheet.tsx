@@ -305,17 +305,13 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   function close() {
     Keyboard.dismiss();
     setDismissing(true);
-    // WEB: the page under a modal is INERT until the route pops, so a long
-    // exit animation blocks the next click. 120ms reads as instant.
-    const exitMs = isWeb ? 120 : 260;
-    backdropOpacity.value = withTiming(0, { duration: Math.min(220, exitMs) });
-    sheetOffset.value = withTiming(
-      closedOffset,
-      { duration: exitMs, easing: Easing.in(Easing.cubic) },
-      (finished) => {
-        if (finished) runOnJS(goBack)();
-      }
-    );
+    // The page under a modal is INERT until the route pops — on EVERY
+    // platform (native lag reported 2026-08-02). Short exits, pop on a
+    // TIMER so a janked frame can't hold the page below hostage.
+    const exitMs = isWeb ? 120 : 160;
+    backdropOpacity.value = withTiming(0, { duration: exitMs });
+    sheetOffset.value = withTiming(closedOffset, { duration: exitMs, easing: Easing.in(Easing.cubic) });
+    setTimeout(goBack, exitMs + 10);
   }
 
   // Data-loss guard (HIG: confirm dismissal when unsaved changes loom).

@@ -106,13 +106,9 @@ export default function CalendarScreen() {
   function goToWeek(delta: number) {
     weekPager.go(delta, () => setWeekOffset((w) => w + delta));
   }
-  const weekSwipe = Gesture.Pan()
-    .activeOffsetX([-24, 24])
-    .failOffsetY([-14, 14])
-    .onEnd((event) => {
-      if (event.translationX < -50) runOnJS(goToWeek)(1);
-      else if (event.translationX > 50) runOnJS(goToWeek)(-1);
-    });
+  // Interactive: the list rides the finger; release past ~40% or flick to
+  // commit to the next/previous week.
+  const weekSwipe = weekPager.panGesture((dir) => setWeekOffset((w) => w + dir));
   const [mode, setMode] = useState<'month' | 'year'>('month');
   // The month the month-list should open at (changed by the year view).
   const [anchor, setAnchor] = useState<MonthItem>({ year: now.getFullYear(), month: now.getMonth() });

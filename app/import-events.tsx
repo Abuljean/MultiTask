@@ -79,13 +79,8 @@ export default function ImportEventsScreen() {
   }
   function close() {
     backdropOpacity.value = withTiming(0, { duration: 220 });
-    sheetOffset.value = withTiming(
-      screenHeight,
-      { duration: 260, easing: Easing.in(Easing.cubic) },
-      (finished) => {
-        if (finished) runOnJS(goBack)();
-      }
-    );
+    sheetOffset.value = withTiming(screenHeight, { duration: 160, easing: Easing.in(Easing.cubic) });
+    setTimeout(goBack, 170);
   }
 
   async function pickFile() {

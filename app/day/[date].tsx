@@ -175,14 +175,16 @@ export default function DayScreen() {
   // Phones: swipe the page horizontally to change days. Wide layouts keep
   // arrows only — task cards there swipe horizontally themselves, and two
   // horizontal gestures on one surface fight.
-  const daySwipe = Gesture.Pan()
-    .enabled(!isWide)
-    .activeOffsetX([-24, 24])
-    .failOffsetY([-14, 14])
-    .onEnd((event) => {
-      if (event.translationX < -50) runOnJS(goToDay)(1);
-      else if (event.translationX > 50) runOnJS(goToDay)(-1);
-    });
+  // Interactive: the page rides the finger (homescreen feel); release past
+  // ~40% or flick to commit. Phones only — wide layouts' task cards own
+  // horizontal swipes.
+  const daySwipe = pager
+    .panGesture((dir) => {
+      const next = new Date(day);
+      next.setDate(next.getDate() + dir);
+      router.setParams({ date: localDateKey(next) });
+    })
+    .enabled(!isWide);
 
   return (
     <Animated.View

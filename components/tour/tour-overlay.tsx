@@ -147,7 +147,7 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
           }
           return measured;
         });
-        await new Promise((r) => setTimeout(r, 150));
+        await new Promise((r) => setTimeout(r, 33));
       }
     };
     void loop();

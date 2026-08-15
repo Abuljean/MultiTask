@@ -25,6 +25,7 @@ import { ThemeToggleButton } from '@/components/theme-toggle-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { TourAnchor, useTourAnchor } from '@/components/tour/tour-context';
 import { usePageSlide } from '@/hooks/use-page-slide';
+import { emitTourEvent } from '@/lib/tour/events';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
@@ -77,6 +78,7 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const { colors, space, type, isDark, monoFont } = useTheme();
   const barAnchor = useTourAnchor('calendar-bar');
+  const yearButtonAnchor = useTourAnchor('calendar-year-button');
   const { width: windowWidth } = useWindowDimensions();
   const { data: tasks } = useTasks();
   const urgencyThresholdHours = useUrgencyThreshold();
@@ -149,8 +151,13 @@ export default function CalendarScreen() {
   const originY = useSharedValue(-1);
   const zoomStyle = useAnimatedStyle(() => ({
     opacity: viewOpacity.value,
+    // NaN guard: 'NaNpx' tokens make reanimated's web parser throw
+    // "Transform origin must have exactly 3 values" (developer repro:
+    // week-view round-trip during the tour).
     transformOrigin:
-      originX.value < 0 ? '50% 50% 0' : `${originX.value}px ${originY.value}px 0`,
+      !isFinite(originX.value) || originX.value < 0
+        ? '50% 50% 0'
+        : `${originX.value}px ${originY.value}px 0`,
     transform: [{ scale: viewScale.value }],
   }));
 
@@ -171,8 +178,13 @@ export default function CalendarScreen() {
   ) {
     const outScale = zoom === 'in' ? 1.4 : 0.7;
     pendingSwitch.current = { next, inScale: zoom === 'in' ? 0.7 : 1.4, apply };
-    originX.value = origin?.x ?? -1;
-    originY.value = origin?.y ?? -1;
+    // Sanitize: a NaN origin would poison the transformOrigin string.
+    const safeOrigin =
+      origin && Number.isFinite(origin.x) && Number.isFinite(origin.y) ? origin : null;
+    originX.value = safeOrigin?.x ?? -1;
+    originY.value = safeOrigin?.y ?? -1;
+    // The tour's zoom-out / zoom-back-in steps advance on these.
+    emitTourEvent(next === 'year' ? 'calendar-year-open' : 'calendar-month-open');
     viewOpacity.value = withTiming(0, { duration: 150, easing: Easing.in(Easing.cubic) });
     viewScale.value = withTiming(outScale, { duration: 150, easing: Easing.in(Easing.cubic) }, (finished) => {
       if (finished) runOnJS(finishSwitch)();
@@ -497,6 +509,8 @@ export default function CalendarScreen() {
       <View ref={barAnchor.ref} onLayout={barAnchor.onLayout} style={[styles.topBar, pageContent, { paddingHorizontal: space.s4, paddingVertical: space.s2 }]}>
         {mode === 'month' ? (
           <Pressable
+            ref={yearButtonAnchor.ref}
+            onLayout={yearButtonAnchor.onLayout}
             onPress={() => {
               const visible = visibleMonthRef.current;
               if (weekView) {

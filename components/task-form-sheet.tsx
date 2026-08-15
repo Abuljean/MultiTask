@@ -29,7 +29,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { CollapsibleReveal } from '@/components/collapsible-reveal';
 import { InlineDatePicker } from '@/components/inline-date-picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { TourAnchor } from '@/components/tour/tour-context';
+import { TourAnchor, useTour } from '@/components/tour/tour-context';
 import { useUndoToast } from '@/components/undo-toast';
 import { confirmDialog } from '@/lib/confirm';
 import { TASK_DESCRIPTION_MAX, TASK_TITLE_MAX } from '@/lib/limits';
@@ -229,6 +229,16 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     isWeb ||
       Boolean(initial?.description || initial?.priority != null || initial?.category || initial?.subject)
   );
+  // The tour's "open Details" step: on web (or when editing) Details starts
+  // ALREADY open, so the tap event can never fire — re-announce the open
+  // state whenever the tour step changes, delayed past the overlay's
+  // listener re-subscription.
+  const { active: tourActive, index: tourIndex } = useTour();
+  useEffect(() => {
+    if (!tourActive || !detailsOpen) return;
+    const timer = setTimeout(() => emitTourEvent('form-details-open'), 80);
+    return () => clearTimeout(timer);
+  }, [tourActive, tourIndex, detailsOpen]);
   const [creating, setCreating] = useState<'category' | 'subject' | null>(null);
   // Options created in this session, so they render as selectable chips
   // immediately (they become "existing" once a task is saved with them).
@@ -662,11 +672,17 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
           )}
 
           {/* ---------------------- Details (collapsed) ---------------------- */}
+          <TourAnchor id="form-details" style={{ marginTop: space.s3, alignSelf: 'flex-start' }}>
           <Pressable
-            onPress={() => setDetailsOpen((open) => !open)}
+            onPress={() => {
+              // Emit OUTSIDE the state updater — updaters run during render,
+              // and advancing the tour from render gets dropped by React.
+              if (!detailsOpen) emitTourEvent('form-details-open');
+              setDetailsOpen((open) => !open);
+            }}
             accessibilityRole="button"
             accessibilityState={{ expanded: detailsOpen }}
-            style={[styles.detailsToggle, { marginTop: space.s3, gap: space.s1 }]}>
+            style={[styles.detailsToggle, { gap: space.s1 }]}>
             <Text style={[type.body, { color: colors.accent }]}>Details</Text>
             <IconSymbol
               name={detailsOpen ? 'chevron.down' : 'chevron.right'}
@@ -674,6 +690,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
               color={colors.accent}
             />
           </Pressable>
+          </TourAnchor>
 
           <CollapsibleReveal open={detailsOpen}>
             <View style={{ gap: space.s3, paddingTop: space.s2 }}>
@@ -756,6 +773,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
               )}
               </TourAnchor>
 
+              <TourAnchor id="form-notes">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Description</Text>
               <TextInput
                 style={[
@@ -765,6 +783,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                     borderRadius: radius.button,
                     color: colors.textPrimary,
                     padding: space.s3,
+                    marginTop: space.s2,
                   },
                 ]}
                 placeholder="Optional notes"
@@ -774,11 +793,13 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                 maxLength={TASK_DESCRIPTION_MAX}
                 multiline
               />
+              </TourAnchor>
             </View>
           </CollapsibleReveal>
         </ScrollView>
         </GestureDetector>
 
+        <TourAnchor id="form-submit" style={{ marginTop: space.s4 }}>
         <Pressable
           onPress={submit}
           disabled={!title.trim()}
@@ -789,12 +810,12 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             {
               backgroundColor: colors.accent,
               borderRadius: radius.button,
-              marginTop: space.s4,
               opacity: !title.trim() ? 0.3 : pressed ? 0.85 : 1,
             },
           ]}>
           <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>{submitLabel}</Text>
         </Pressable>
+        </TourAnchor>
       </Animated.View>
       </GestureDetector>
     </View>

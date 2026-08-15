@@ -12,7 +12,10 @@ export type TourEvent =
   | 'form-category-set'
   | 'form-subject-set'
   | 'recurring-added'
-  | 'recurring-checked';
+  | 'recurring-checked'
+  | 'form-details-open'
+  | 'calendar-year-open'
+  | 'calendar-month-open';
 
 type Listener = (event: TourEvent) => void;
 

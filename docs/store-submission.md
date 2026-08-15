@@ -51,33 +51,38 @@ Add a task in seconds, on a plane or on the subway. Everything syncs to your oth
 ### Description
 
 ```
-Multitask Manager is a task manager for people who actually use one every day.
+Multitask Manager is a task manager you'll actually keep using.
 
-Add a task in about five seconds. Type the title, pick a time, done. Category, subject, priority and notes are there when you want them and out of the way when you don't.
+Adding a task takes about five seconds. Type the title, pick a time, done. Category, subject, priority and notes are all there if you want them, but they stay out of your way until you go looking.
 
-WORKS WITHOUT A CONNECTION
-Everything you do is saved on your device first. Add tasks on a plane, finish them underground, and the moment you have a signal again it all lands on your other devices. Offline is not a degraded mode here, it works exactly the same.
+WORKS OFFLINE
 
-SEE WHAT IS ACTUALLY URGENT
-Every task carries its own status. Ongoing, urgent, overdue. The card changes colour, weight and icon as a deadline approaches, so a glance is enough. You choose how many hours ahead counts as urgent.
+Everything saves to your device first, so you can add tasks on a plane and check them off on the subway. When you get a signal back it syncs to your other devices. It's the same app either way.
 
-FOUR WAYS TO LOOK AT YOUR TIME
-Tasks, grouped by when they are due. Daily, for the things you repeat every day and the ones due today. Calendar, from a year down to a month down to a single day laid out on a real timeline. And search and filters when you need to find one thing.
+SEE WHAT'S URGENT
 
-THE SMALL THINGS
-Swipe right to complete, left to delete, with undo on everything.
-Notifications when a task turns urgent, and again shortly before it is due.
-Home screen and lock screen widgets, including checking a task off from the widget.
+Every task has a status: ongoing, urgent, or overdue. As a deadline gets closer the card changes colour, weight and icon, so you can tell where things stand at a glance. You decide how many hours ahead counts as urgent.
+
+FOUR VIEWS
+
+Tasks groups everything by due date. Daily covers your repeating tasks plus whatever's due today. Calendar zooms from a year to a month to a single day on a real timeline. And there's search and filtering for when you just need to find one thing.
+
+SMALLER STUFF
+
+Swipe right to complete, left to delete. Undo works on both.
+Notifications when a task turns urgent, and another shortly before it's due.
+Home screen and lock screen widgets, and you can check a task off without opening the app.
 Ask Siri to add a task.
-Your tasks can appear in your iPhone's own Calendar app.
-Import a schedule from a CSV file as events or as tasks.
-Dark mode, and a light and dark toggle on every screen.
-Full VoiceOver labels, Dynamic Type, and reduced motion support.
+Your tasks can show up in the iPhone Calendar app.
+Import a schedule from CSV as either events or tasks.
+Dark mode, with a light/dark toggle on every screen.
+Full VoiceOver labels, Dynamic Type and reduced motion support.
 
 YOUR DATA
-No ads. No tracking. Nothing sold, ever. Your tasks are yours, and you can delete your account and everything in it from inside the app at any time.
 
-Multitask Manager is free, and made by one independent developer.
+No ads, no tracking, nothing sold. Ever. You can delete your account and everything in it from inside the app whenever you want.
+
+Multitask Manager is free. I'm one developer, working on it on my own.
 ```
 
 ### Keywords (100 character limit, no spaces after commas)

@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { supabase } from '@/lib/supabase';
 import { placeholders, syncDb } from '@/lib/sync/system';
 import { newNumericId } from '@/lib/sync/ids';
-import { emitTourEvent } from '@/lib/tour/events';
+import { emitTourEvent, getTourTaskId, setTourTaskId } from '@/lib/tour/events';
 import { formatWallClock } from './dates';
 import {
   DEFAULT_CATEGORY,
@@ -157,6 +157,7 @@ export function useCreateTask() {
       return toTask(data as TaskRow);
     },
     onMutate: ({ input, tempId }) => {
+      setTourTaskId(tempId);
       emitTourEvent('task-created');
       return applyOptimistic(queryClient, (tasks) => [
         ...tasks,
@@ -176,10 +177,13 @@ export function useCreateTask() {
         },
       ]);
     },
-    onSuccess: (createdTask, { tempId }) =>
+    onSuccess: (createdTask, { tempId }) => {
+      // Keep the tour pointed at this task across the temp->real id swap.
+      if (getTourTaskId() === tempId) setTourTaskId(createdTask.id);
       queryClient.setQueryData<Task[]>(TASKS_KEY, (old) =>
         old?.map((t) => (t.id === tempId ? createdTask : t))
-      ),
+      );
+    },
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => settleInvalidate(queryClient),
   });

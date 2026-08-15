@@ -32,6 +32,7 @@ import { animateListChanges } from '@/lib/animate-layout';
 import { isReduceMotionEnabled } from '@/lib/reduced-motion';
 import { confirmDialog } from '@/lib/confirm';
 import { clearEnterMark, getEnterFrom, markEnter } from '@/lib/enter-marks';
+import { getTourTaskId } from '@/lib/tour/events';
 import { EMPTY_FILTERS, filterTasks, hasActiveFilters, type TaskFilters } from '@/lib/tasks/filter';
 import { groupTasks } from '@/lib/tasks/sections';
 import { pageContent } from '@/lib/theme/layout';
@@ -379,8 +380,15 @@ export default function TaskListScreen() {
                 exit={exiting.get(task.id) ?? null}
               />
             );
-            // The tour's delete/complete steps ring the first OPEN task.
-            if (index === 0 && section.key !== 'completed' && section.key !== 'deleted') {
+            // The tour's delete/complete steps ring THE TASK THE TOUR MADE
+            // (falling back to the first open task) — with existing tasks
+            // the first row could be some old overdue task, leaving the
+            // real one dimmed out (developer report 2026-08-14).
+            const tourId = getTourTaskId();
+            const isTourTask = tourId != null && task.id === tourId;
+            const isFirstOpen =
+              tourId == null && index === 0 && section.key !== 'completed' && section.key !== 'deleted';
+            if (isTourTask || isFirstOpen) {
               return <TourAnchor id="first-task">{card}</TourAnchor>;
             }
             return card;

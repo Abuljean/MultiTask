@@ -14,7 +14,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type LayoutRectangle } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type LayoutRectangle } from 'react-native';
 
 import { useTour } from '@/components/tour/tour-context';
 import { onTourEvent } from '@/lib/tour/events';
@@ -34,13 +34,28 @@ function hostForPath(pathname: string): TourHost {
 }
 
 export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
-  const { active, stop, index, setIndex, measureAnchor, anchorVersion } = useTour();
+  const { active, stop, index, setIndex, measureAnchor, anchorVersion, setRingColor } = useTour();
   const { colors, space, radius, type, monoFont } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { height: windowHeight } = useWindowDimensions();
   const [rect, setRect] = useState<LayoutRectangle | null>(null);
+  const [selfRing, setSelfRing] = useState(false);
+  // Keyboard-aware card: never hide behind the keyboard (developer report
+  // 2026-08-14: the step card vanished while typing the title).
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (e) => setKeyboardHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const step = TOUR_STEPS[index];
+  useEffect(() => setRingColor(colors.accent), [colors.accent, setRingColor]);
 
   // This instance is live only when BOTH the route and the step belong to
   // it — otherwise its effects stay quiet so nothing runs twice.
@@ -115,8 +130,10 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
       // Let entrance animations settle before the first ring.
       await new Promise((r) => setTimeout(r, 350));
       while (!cancelled) {
-        const measured = await measureAnchor(step.anchor as string);
+        const result = await measureAnchor(step.anchor as string);
         if (cancelled) return;
+        const measured = result?.rect ?? null;
+        if (result) setSelfRing(result.selfRing);
         setRect((prev) => {
           if (!measured) return prev;
           if (
@@ -130,7 +147,7 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
           }
           return measured;
         });
-        await new Promise((r) => setTimeout(r, 350));
+        await new Promise((r) => setTimeout(r, 150));
       }
     };
     void loop();
@@ -142,9 +159,9 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
 
   // Event-based advancing — only the live instance listens.
   useEffect(() => {
-    if (!live || !step.advanceOn) return;
+    if (!live || (!step.advanceOn && !step.advanceOnAny)) return;
     return onTourEvent((event) => {
-      if (event === step.advanceOn) goTo(index + 1);
+      if (event === step.advanceOn || step.advanceOnAny?.includes(event)) goTo(index + 1);
     });
   }, [live, step, index, goTo]);
 
@@ -199,7 +216,7 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
     </View>
   );
 
-  const ring = rect ? (
+  const ring = rect && !selfRing ? (
     <View
       pointerEvents="none"
       style={[
@@ -226,11 +243,13 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
       </>
     ) : null;
 
-  const placeTop = rect ? rect.y + rect.height / 2 > windowHeight / 2 : step.placement === 'top';
+  const usableHeight = windowHeight - keyboardHeight;
+  const placeTop = rect ? rect.y + rect.height / 2 > usableHeight / 2 : step.placement === 'top';
+  const bottomOffset = keyboardHeight > 0 ? keyboardHeight + 12 : 96;
   const holder = (
     <View
       pointerEvents="box-none"
-      style={[styles.cardHolder, placeTop ? styles.holderTop : styles.holderBottom]}>
+      style={[styles.cardHolder, placeTop ? styles.holderTop : { bottom: bottomOffset }]}>
       {card}
     </View>
   );

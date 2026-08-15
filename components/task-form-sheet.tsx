@@ -587,8 +587,10 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             returnKeyType="done"
           />
 
-          <TourAnchor id="form-when">
-          <View style={[styles.chipRow, { gap: space.s2, marginTop: space.s3 }]}>
+          {/* marginTop lives on the ANCHOR so the tour ring hugs the chips
+              (inside, the margin read as dead space above them). */}
+          <TourAnchor id="form-when" style={{ marginTop: space.s3 }}>
+          <View style={[styles.chipRow, { gap: space.s2 }]}>
             {dueDate ? (
               <>
                 <Pressable

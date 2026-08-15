@@ -26,3 +26,17 @@ export function onTourEvent(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
+
+// The task the tour created — the delete/undo/complete steps ring THIS
+// task, not whatever happens to be first in the list (developer report
+// 2026-08-14: with existing tasks the ring landed on an old task and the
+// real one stayed dimmed out).
+let tourTaskId: number | null = null;
+
+export function setTourTaskId(id: number | null) {
+  tourTaskId = id;
+}
+
+export function getTourTaskId(): number | null {
+  return tourTaskId;
+}

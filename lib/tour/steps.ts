@@ -26,6 +26,8 @@ export type TourStep = {
   /** Action steps: dim + block everything except the anchor hole. */
   dim?: boolean;
   advanceOn?: TourEvent;
+  /** Failsafe: any of these ALSO advances (wrong-but-close actions). */
+  advanceOnAny?: TourEvent[];
   advanceOnPath?: string;
   advanceOnPathPrefix?: string;
 };
@@ -95,6 +97,7 @@ export const TOUR_STEPS: TourStep[] = [
     placement: 'bottom',
     dim: true,
     advanceOn: 'task-deleted',
+    advanceOnAny: ['task-deleted', 'task-completed'],
   },
   {
     id: 'undo',
@@ -105,6 +108,7 @@ export const TOUR_STEPS: TourStep[] = [
     webBody: 'Click Undo in the toast at the bottom. Missed it? Open the Deleted group and use the task’s right edge.',
     placement: 'top',
     advanceOn: 'task-restored',
+    advanceOnAny: ['task-restored', 'task-uncompleted'],
   },
   {
     id: 'complete',
@@ -118,6 +122,7 @@ export const TOUR_STEPS: TourStep[] = [
     placement: 'bottom',
     dim: true,
     advanceOn: 'task-completed',
+    advanceOnAny: ['task-completed', 'task-deleted'],
   },
   {
     id: 'daily-intro',

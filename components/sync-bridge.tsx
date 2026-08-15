@@ -12,6 +12,7 @@
 //     restart the watch streams.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import { clearTaskNotifications } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +32,15 @@ export function SyncBridge() {
 
   useEffect(() => {
     let aborter = new AbortController();
+
+    // A wifi drop puts PowerSync into retry BACKOFF — when the network
+    // returns it can sit "offline" for a long while with nothing nudging it
+    // (developer report 2026-08-11: "says offline even though there is
+    // wifi"). Foregrounding the app is the natural moment to short-circuit
+    // the backoff and reconnect immediately.
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') reconnectSync();
+    });
 
     const boot = async (signal: AbortSignal) => {
       const ready = await initSync();
@@ -86,6 +96,7 @@ export function SyncBridge() {
 
     return () => {
       aborter.abort();
+      appStateSub.remove();
       authSub.subscription.unsubscribe();
     };
   }, [queryClient]);

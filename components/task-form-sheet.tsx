@@ -29,6 +29,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming
 import { CollapsibleReveal } from '@/components/collapsible-reveal';
 import { InlineDatePicker } from '@/components/inline-date-picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { TourAnchor } from '@/components/tour/tour-context';
 import { useUndoToast } from '@/components/undo-toast';
 import { confirmDialog } from '@/lib/confirm';
 import { TASK_DESCRIPTION_MAX, TASK_TITLE_MAX } from '@/lib/limits';
@@ -36,6 +37,7 @@ import { endOfToday } from '@/lib/tasks/dates';
 import { useDeleteCategory, useDeleteSubject, useTasks } from '@/lib/tasks/use-tasks';
 import { priorityTiers } from '@/lib/theme/tokens';
 import { useTheme } from '@/lib/theme/use-theme';
+import { emitTourEvent } from '@/lib/tour/events';
 
 export type NamedColor = { name: string; color: string };
 
@@ -283,6 +285,19 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     sheetOffset.value = withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) });
   }, [backdropOpacity, sheetOffset]);
 
+  // Focus the title AFTER the sheet is on screen. autoFocus at mount made
+  // the keyboard appear BEFORE the sheet on a busy JS thread ("keyboard
+  // first, page a few seconds later" — developer report 2026-08-11), and
+  // the keyboard animation competing with the sheet entrance is exactly
+  // what makes the open feel heavy.
+  const titleInputRef = useRef<TextInput>(null);
+  useEffect(() => {
+    if (!autoFocusTitle) return;
+    const timer = setTimeout(() => titleInputRef.current?.focus(), isWeb ? 120 : 320);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: sheetOffset.value }],
   }));
@@ -467,6 +482,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
       return;
     }
     if (selected) {
+      emitTourEvent('form-date-set');
       setDueDate((current) => {
         const base = current ?? endOfToday();
         const next = new Date(base);
@@ -560,11 +576,12 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
             value={title}
             onChangeText={setTitle}
             maxLength={TASK_TITLE_MAX}
-            autoFocus={autoFocusTitle}
+            ref={titleInputRef}
             // Done only dismisses the keyboard; submitting is the button's job.
             returnKeyType="done"
           />
 
+          <TourAnchor id="form-when">
           <View style={[styles.chipRow, { gap: space.s2, marginTop: space.s3 }]}>
             {dueDate ? (
               <>
@@ -612,6 +629,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
               </Pressable>
             )}
           </View>
+          </TourAnchor>
 
           {Platform.OS !== 'android' ? (
             <Animated.View style={pickerContainerStyle}>
@@ -651,6 +669,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
 
           <CollapsibleReveal open={detailsOpen}>
             <View style={{ gap: space.s3, paddingTop: space.s2 }}>
+              <TourAnchor id="form-priority">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Priority</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
                 <SelectChip label="None" selected={priority == null} onPress={() => setPriorityValue(null)} />
@@ -659,11 +678,13 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                     key={tier}
                     label={priorityTiers[tier].label}
                     selected={priority === tier}
-                    onPress={() => setPriorityValue(tier)}
+                    onPress={() => { setPriorityValue(tier); emitTourEvent('form-priority-set'); }}
                   />
                 ))}
               </View>
+              </TourAnchor>
 
+              <TourAnchor id="form-category">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Category</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
                 {categories.map((c) => (
@@ -672,7 +693,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                     label={c.name}
                     color={c.color}
                     selected={category?.name === c.name}
-                    onPress={() => setCategory(category?.name === c.name ? null : c)}
+                    onPress={() => { setCategory(category?.name === c.name ? null : c); emitTourEvent('form-category-set'); }}
                     onDelete={() => removeOption('category', c)}
                   />
                 ))}
@@ -688,11 +709,14 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                   onCreate={(option) => {
                     setExtraCategories((prev) => [...prev, option]);
                     setCategory(option);
+                    emitTourEvent('form-category-set');
                     setCreating(null);
                   }}
                 />
               )}
+              </TourAnchor>
 
+              <TourAnchor id="form-subject">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Subject</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
                 {subjects.map((s) => (
@@ -701,7 +725,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                     label={s.name}
                     color={s.color}
                     selected={subject?.name === s.name}
-                    onPress={() => setSubject(subject?.name === s.name ? null : s)}
+                    onPress={() => { setSubject(subject?.name === s.name ? null : s); emitTourEvent('form-subject-set'); }}
                     onDelete={() => removeOption('subject', s)}
                   />
                 ))}
@@ -717,10 +741,12 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
                   onCreate={(option) => {
                     setExtraSubjects((prev) => [...prev, option]);
                     setSubject(option);
+                    emitTourEvent('form-subject-set');
                     setCreating(null);
                   }}
                 />
               )}
+              </TourAnchor>
 
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Description</Text>
               <TextInput

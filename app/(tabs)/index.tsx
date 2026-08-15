@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
 import { SearchFilterBar } from '@/components/search-filter-bar';
-import { useTourAnchor } from '@/components/tour/tour-context';
+import { TourAnchor, useTourAnchor } from '@/components/tour/tour-context';
 import { SwipeableTaskCard } from '@/components/swipeable-task-card';
 import { SyncStatusDot } from '@/components/sync-status-dot';
 import { ThemeToggleButton } from '@/components/theme-toggle-button';
@@ -367,17 +367,24 @@ export default function TaskListScreen() {
               </View>
             )
           }
-          renderItem={({ item: task }) => (
-            <SwipeableTaskCard
-              task={task}
-              onSwipeRight={handleSwipeRight}
-              onSwipeLeft={handleSwipeLeft}
-              onPress={(t) => router.push(`/task/${t.id}`)}
-              enterFrom={getEnterFrom(task.id)}
-              onEntered={clearEnterMark}
-              exit={exiting.get(task.id) ?? null}
-            />
-          )}
+          renderItem={({ item: task, section, index }) => {
+            const card = (
+              <SwipeableTaskCard
+                task={task}
+                onSwipeRight={handleSwipeRight}
+                onSwipeLeft={handleSwipeLeft}
+                onPress={(t) => router.push(`/task/${t.id}`)}
+                enterFrom={getEnterFrom(task.id)}
+                onEntered={clearEnterMark}
+                exit={exiting.get(task.id) ?? null}
+              />
+            );
+            // The tour's delete/complete steps ring the first OPEN task.
+            if (index === 0 && section.key !== 'completed' && section.key !== 'deleted') {
+              return <TourAnchor id="first-task">{card}</TourAnchor>;
+            }
+            return card;
+          }}
           ItemSeparatorComponent={() => <View style={{ height: space.s3 }} />}
           SectionSeparatorComponent={() => <View style={{ height: space.s2 }} />}
           ListEmptyComponent={

@@ -8,9 +8,10 @@
 //   filled accent dot    = actively syncing
 //   red ring + "offline" = offline (local-first keeps working)
 // Renders nothing in online mode (Expo Go), where sync doesn't exist.
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useSyncStatus } from '@/hooks/use-sync-status';
+import { reconnectSync } from '@/lib/sync/system';
 import { useTheme } from '@/lib/theme/use-theme';
 
 export function SyncStatusDot() {
@@ -22,10 +23,14 @@ export function SyncStatusDot() {
   const label = status.connected ? (status.busy ? 'Syncing' : 'Synced') : 'Offline';
 
   return (
-    <View
+    <Pressable
+      // Tapping the dot while offline forces a reconnect attempt — the
+      // escape hatch when the network is back but the retry backoff isn't.
+      onPress={status.connected ? undefined : () => reconnectSync()}
+      hitSlop={10}
       style={styles.row}
-      accessibilityRole="text"
-      accessibilityLabel={`Sync status: ${label.toLowerCase()}`}>
+      accessibilityRole={status.connected ? 'text' : 'button'}
+      accessibilityLabel={`Sync status: ${label.toLowerCase()}${status.connected ? '' : '. Tap to retry now.'}`}>
       {!status.connected && (
         <Text style={[type.caption, { color: colors.textSecondary, fontWeight: '400' }]}>offline</Text>
       )}
@@ -37,7 +42,7 @@ export function SyncStatusDot() {
             : { borderWidth: 1.5, borderColor: colors.statusOverdueAccent },
         ]}
       />
-    </View>
+    </Pressable>
   );
 }
 

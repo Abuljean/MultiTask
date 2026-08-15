@@ -9,6 +9,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { SyncBridge } from '@/components/sync-bridge';
+import { TourProvider } from '@/components/tour/tour-context';
+import { TourOverlay } from '@/components/tour/tour-overlay';
 import { UndoToastProvider } from '@/components/undo-toast';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -133,7 +135,12 @@ function ThemedApp() {
   return (
     <ThemeProvider value={navTheme}>
       <UndoToastProvider>
-        <RootNavigator />
+        {/* Tour lives at the ROOT so its overlay paints above every route —
+            the interactive tour walks into the quick-add sheet (v3). */}
+        <TourProvider>
+          <RootNavigator />
+          <TourOverlay />
+        </TourProvider>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       </UndoToastProvider>
     </ThemeProvider>

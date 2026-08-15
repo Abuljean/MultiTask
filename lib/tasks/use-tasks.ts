@@ -421,8 +421,12 @@ export function useRestoreTask() {
       const { error } = await supabase.from('task').update({ deleted_at: null }).eq('task_id', id);
       if (error) throw error;
     },
-    onMutate: (id) =>
-      applyOptimistic(queryClient, (tasks) => tasks.map((t) => (t.id === id ? { ...t, deletedAt: null } : t))),
+    onMutate: (id) => {
+      emitTourEvent('task-restored');
+      return applyOptimistic(queryClient, (tasks) =>
+        tasks.map((t) => (t.id === id ? { ...t, deletedAt: null } : t))
+      );
+    },
     onError: (_error, _vars, context) => rollback(queryClient, context),
     onSettled: () => settleInvalidate(queryClient),
   });

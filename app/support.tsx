@@ -70,12 +70,15 @@ export default function SupportScreen() {
         </Pressable>
 
         <Text style={[type.display, { color: colors.textPrimary }]}>Support</Text>
-        <Text style={{ fontFamily: monoFont, fontSize: 12, color: colors.textTertiary, marginTop: space.s1, marginBottom: space.s5 }}>
+        <Text style={[type.caption, { fontFamily: monoFont, color: colors.textTertiary, marginTop: space.s1, marginBottom: space.s5 }]}>
           Multitask Manager · updated {UPDATED}
         </Text>
 
         <Pressable
-          onPress={() => Linking.openURL(`mailto:${CONTACT}`)}
+          // A device with no mail account rejects the mailto: — swallow it
+          // rather than throwing. The address is printed right below, so the
+          // user still has the support path either way.
+          onPress={() => Linking.openURL(`mailto:${CONTACT}`).catch(() => {})}
           accessibilityRole="link"
           accessibilityLabel={`Email support at ${CONTACT}`}
           style={{

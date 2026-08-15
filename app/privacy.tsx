@@ -86,7 +86,7 @@ export default function PrivacyScreen() {
         </Pressable>
 
         <Text style={[type.display, { color: colors.textPrimary }]}>Privacy policy</Text>
-        <Text style={{ fontFamily: monoFont, fontSize: 12, color: colors.textTertiary, marginTop: space.s1, marginBottom: space.s5 }}>
+        <Text style={[type.caption, { fontFamily: monoFont, color: colors.textTertiary, marginTop: space.s1, marginBottom: space.s5 }]}>
           Multitask Manager · updated {UPDATED}
         </Text>
 

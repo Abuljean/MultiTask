@@ -33,6 +33,9 @@ export type TimelineConfig = {
   gapThresholdHours: number;
   /** Rendered height of a compressed band. */
   gapBandPx: number;
+  /** Span the full 00:00–24:00 day (developer request 2026-08-15) — the
+   *  leading/trailing empty stretches then compress like interior gaps. */
+  fullDay?: boolean;
 };
 
 export type TimelineLayout = {
@@ -102,6 +105,9 @@ export function layoutDayTimeline(
   const busy: { s: number; e: number }[] = [
     ...timed.map((e) => ({ s: e.startH, e: e.endH })),
     ...dated.map((t) => ({ s: t.dueH, e: Math.min(24, t.dueH + taskBusyHours) })),
+    // Zero-width sentinels pin the axis to the whole day, turning the
+    // leading/trailing empty runs into compressible interior gaps.
+    ...(config.fullDay ? [{ s: 0, e: 0 }, { s: 24, e: 24 }] : []),
   ].sort((a, b) => a.s - b.s);
   const merged: { s: number; e: number }[] = [];
   for (const b of busy) {

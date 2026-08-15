@@ -23,6 +23,9 @@ export type TourStep = {
   body: string;
   webBody?: string;
   placement: 'top' | 'bottom';
+  /** Pin the card to one edge regardless of the ring (e.g. the date
+   *  picker expands BELOW the chips — the card must stay out of its way). */
+  cardPin?: 'top' | 'bottom';
   /** Action steps: dim + block everything except the anchor hole. */
   dim?: boolean;
   advanceOn?: TourEvent;
@@ -51,6 +54,7 @@ export const TOUR_STEPS: TourStep[] = [
     host: 'quick-add',
     anchor: 'form-when',
     title: 'Name it, time it',
+    cardPin: 'top',
     body: 'Type a name for your task. The chips below set the day and the time. A task only needs those two things. Change the time now, or press Skip step.',
     placement: 'top',
     advanceOn: 'form-date-set',
@@ -97,7 +101,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'notes',
-    kind: 'spotlight',
+    kind: 'action',
     host: 'quick-add',
     anchor: 'form-notes',
     title: 'Notes',

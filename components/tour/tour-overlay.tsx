@@ -73,6 +73,7 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
         finish();
         return;
       }
+      Keyboard.dismiss();
       setRect(null);
       setIndex(nextIndex);
     },
@@ -248,7 +249,11 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
     ) : null;
 
   const usableHeight = windowHeight - keyboardHeight;
-  const placeTop = rect ? rect.y + rect.height / 2 > usableHeight / 2 : step.placement === 'top';
+  const placeTop = step.cardPin
+    ? step.cardPin === 'top'
+    : rect
+      ? rect.y + rect.height / 2 > usableHeight / 2
+      : step.placement === 'top';
   const bottomOffset = keyboardHeight > 0 ? keyboardHeight + 12 : 96;
   const holder = (
     <View

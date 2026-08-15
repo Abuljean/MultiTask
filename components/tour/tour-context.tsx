@@ -127,10 +127,15 @@ export function TourAnchor({
   id,
   children,
   style,
+  ringPadX = RING_PAD,
 }: {
   id: string;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** Horizontal ring padding. Anchors inside horizontally-clipping
+   *  containers (the form sheet's ScrollView) pass 0 so the ring's sides
+   *  aren't cut off. */
+  ringPadX?: number;
 }) {
   const { registerAnchor, activeAnchor, ringColor } = useTour();
   const ref = useRef<View>(null);
@@ -147,7 +152,8 @@ export function TourAnchor({
           style={[
             StyleSheet.absoluteFillObject,
             {
-              margin: -RING_PAD,
+              marginVertical: -RING_PAD,
+              marginHorizontal: -ringPadX,
               borderWidth: 2,
               borderColor: ringColor,
               borderRadius: 14,

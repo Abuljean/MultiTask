@@ -256,8 +256,9 @@ export default function DailyScreen() {
         {/* Always-visible add affordance: a ghost pill row matching the
             recurring rows' shape, so it can't be missed but stays calm. */}
         {!recurring.isLoading && (
-          <TourAnchor id="daily-add">
-          <View style={{ marginTop: space.s2 }}>
+          // Margin lives on the ANCHOR so the tour ring hugs the row.
+          <TourAnchor id="daily-add" style={{ marginTop: space.s2 }}>
+          <View>
             {adding ? (
               <TextInput
                 style={[

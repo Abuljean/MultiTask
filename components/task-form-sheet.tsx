@@ -599,7 +599,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
 
           {/* marginTop lives on the ANCHOR so the tour ring hugs the chips
               (inside, the margin read as dead space above them). */}
-          <TourAnchor id="form-when" style={{ marginTop: space.s3 }}>
+          <TourAnchor ringPadX={0} id="form-when" style={{ marginTop: space.s3 }}>
           <View style={[styles.chipRow, { gap: space.s2 }]}>
             {dueDate ? (
               <>
@@ -672,7 +672,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
           )}
 
           {/* ---------------------- Details (collapsed) ---------------------- */}
-          <TourAnchor id="form-details" style={{ marginTop: space.s3, alignSelf: 'flex-start' }}>
+          <TourAnchor ringPadX={0} id="form-details" style={{ marginTop: space.s3, alignSelf: 'flex-start' }}>
           <Pressable
             onPress={() => {
               // Emit OUTSIDE the state updater — updaters run during render,
@@ -694,7 +694,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
 
           <CollapsibleReveal open={detailsOpen}>
             <View style={{ gap: space.s3, paddingTop: space.s2 }}>
-              <TourAnchor id="form-priority">
+              <TourAnchor ringPadX={0} id="form-priority">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Priority</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
                 <SelectChip label="None" selected={priority == null} onPress={() => setPriorityValue(null)} />
@@ -709,7 +709,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
               </View>
               </TourAnchor>
 
-              <TourAnchor id="form-category">
+              <TourAnchor ringPadX={0} id="form-category">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Category</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
                 {categories.map((c) => (
@@ -741,7 +741,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
               )}
               </TourAnchor>
 
-              <TourAnchor id="form-subject">
+              <TourAnchor ringPadX={0} id="form-subject">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Subject</Text>
               <View style={[styles.wrapRow, { gap: space.s2 }]}>
                 {subjects.map((s) => (
@@ -773,7 +773,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
               )}
               </TourAnchor>
 
-              <TourAnchor id="form-notes">
+              <TourAnchor ringPadX={0} id="form-notes">
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Description</Text>
               <TextInput
                 style={[
@@ -799,7 +799,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
         </ScrollView>
         </GestureDetector>
 
-        <TourAnchor id="form-submit" style={{ marginTop: space.s4 }}>
+        <TourAnchor ringPadX={0} id="form-submit" style={{ marginTop: space.s4 }}>
         <Pressable
           onPress={submit}
           disabled={!title.trim()}

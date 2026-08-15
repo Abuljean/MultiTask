@@ -89,10 +89,11 @@ function RootNavigator() {
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
       </Stack.Protected>
-      {/* PUBLIC (outside both guards): the privacy policy must be readable
+      {/* PUBLIC (outside both guards): policy pages must be readable
           without an account — App Store reviewers and prospective users
-          land on /privacy from the store listing. */}
+          land here from the store listing. */}
       <Stack.Screen name="privacy" options={{ headerShown: false }} />
+      <Stack.Screen name="terms" options={{ headerShown: false }} />
     </Stack>
   );
 }

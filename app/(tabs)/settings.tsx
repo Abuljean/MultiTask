@@ -22,6 +22,7 @@ import { useDroppedOpCount } from '@/hooks/use-dropped-ops';
 import { useNotificationLead } from '@/hooks/use-notification-lead';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { base64ToBytes } from '@/lib/base64';
+import { confirmDialog } from '@/lib/confirm';
 import { removeDeviceCalendar } from '@/lib/device-calendar/sync';
 import {
   getCalendarPermissionState,
@@ -164,6 +165,35 @@ export default function SettingsScreen() {
         ? 'Couldn’t start the email change.'
         : 'Check your new inbox to confirm the change.',
     });
+  }
+
+  // Apple guideline 5.1.1(v): account deletion must be available IN the
+  // app, and it must actually delete. Two confirms, then the RPC removes
+  // every owned row, the avatar files, and the auth user itself
+  // (supabase/11-delete-account.sql).
+  async function deleteAccount() {
+    const first = await confirmDialog({
+      title: 'Delete your account?',
+      message: 'This permanently deletes your account, all tasks, events, and daily tasks on every device. There is no undo.',
+      confirmLabel: 'Continue',
+      destructive: true,
+    });
+    if (!first) return;
+    const second = await confirmDialog({
+      title: 'Are you sure?',
+      message: 'Everything will be gone for good.',
+      confirmLabel: 'Delete everything',
+      destructive: true,
+    });
+    if (!second) return;
+    const { error } = await supabase.rpc('delete_own_account');
+    if (error) {
+      toast.show({ message: 'Couldn’t delete the account. Check your connection and try again.' });
+      return;
+    }
+    // The auth user is gone server-side. Local sign-out wipes the device
+    // copy (sync db, cache, notifications) through the existing hooks.
+    await supabase.auth.signOut();
   }
 
   async function sendPasswordReset() {
@@ -411,6 +441,7 @@ export default function SettingsScreen() {
         {actionRow('Replay the tour', () => tour.start())}
         {actionRow('How to use Multitask', () => router.push('/guide'))}
         {actionRow('Privacy policy', () => router.push('/privacy'))}
+        {actionRow('Terms of service', () => router.push('/terms'))}
 
         {sectionTitle('Session')}
         {droppedOps > 0 && (
@@ -421,6 +452,7 @@ export default function SettingsScreen() {
           </Text>
         )}
         {actionRow('Sign out', () => supabase.auth.signOut(), colors.statusOverdueAccent)}
+        {actionRow('Delete account', deleteAccount, colors.statusOverdueAccent)}
 
         <Text style={[type.caption, { color: colors.textTertiary, marginTop: space.s8 }]}>
           Multitask (development build)

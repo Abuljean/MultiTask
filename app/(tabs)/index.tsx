@@ -5,13 +5,11 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Platform,
   Pressable,
   RefreshControl,
   SectionList,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +25,7 @@ import { useUndoToast } from '@/components/undo-toast';
 import { useCollapsedSection } from '@/hooks/use-collapsed-section';
 import { useTaskActions } from '@/hooks/use-task-actions';
 import { useToday } from '@/hooks/use-today';
+import { useWideLayout } from '@/hooks/use-wide-layout';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { animateListChanges } from '@/lib/animate-layout';
 import { isReduceMotionEnabled } from '@/lib/reduced-motion';
@@ -64,10 +63,9 @@ export default function TaskListScreen() {
   // Search + filter. On PHONES: not rendered until deliberately revealed —
   // an overscroll pull at the top, or the magnifier button (developer: keep
   // it hidden, it's a lot of information) — and auto-hidden again on scroll
-  // when no criteria are active. On DESKTOP/WEB: permanently open, filters
-  // included — the space exists (developer request 2026-07-11).
-  const { width: windowWidth } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && windowWidth >= 900;
+  // when no criteria are active. On DESKTOP/WEB AND iPad: permanently open,
+  // filters included — the space exists (developer request 2026-07-11).
+  const isDesktop = useWideLayout();
   const [filters, setFilters] = useState<TaskFilters>(EMPTY_FILTERS);
   // Filter chips start collapsed everywhere (developer pick) — the bar's
   // "Filter" button opens them.

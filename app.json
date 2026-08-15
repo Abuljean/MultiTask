@@ -19,7 +19,13 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCalendarsFullAccessUsageDescription": "Adds your tasks as events in a Multitask calendar, and removes them when tasks are completed or deleted."
+        "NSCalendarsFullAccessUsageDescription": "Adds your tasks as events in a Multitask calendar, and removes them when tasks are completed or deleted.",
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     },
     "android": {
@@ -90,7 +96,15 @@
           ]
         }
       ],
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -35,6 +35,8 @@ import { confirmDialog } from '@/lib/confirm';
 import { TASK_DESCRIPTION_MAX, TASK_TITLE_MAX } from '@/lib/limits';
 import { endOfToday } from '@/lib/tasks/dates';
 import { useDeleteCategory, useDeleteSubject, useTasks } from '@/lib/tasks/use-tasks';
+import { useWideNative } from '@/hooks/use-wide-layout';
+import { tabletSheet } from '@/lib/theme/layout';
 import { priorityTiers } from '@/lib/theme/tokens';
 import { useTheme } from '@/lib/theme/use-theme';
 import { emitTourEvent } from '@/lib/tour/events';
@@ -215,6 +217,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
   const { colors, space, radius, type, monoFont } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const onTablet = useWideNative();
 
   const [title, setTitle] = useState(initial?.title ?? '');
   const [dueDate, setDueDate] = useState<Date | null>(initial?.dueDate ?? null);
@@ -536,6 +539,7 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
         style={[
           styles.sheet,
           isWeb && styles.sheetWeb,
+          onTablet && tabletSheet,
           sheetStyle,
           {
             backgroundColor: colors.surfaceElevated,

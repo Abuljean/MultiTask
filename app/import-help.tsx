@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { useUndoToast } from '@/components/undo-toast';
+import { useWideNative } from '@/hooks/use-wide-layout';
+import { tabletSheet } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
 const AI_PROMPT = `You are helping me turn my schedule into a CSV file for my calendar app. I will paste my events in my NEXT message. For now, just read these rules and reply "Ready — paste your events."
@@ -41,6 +43,7 @@ export default function ImportHelpScreen() {
   const { colors, space, radius, type, monoFont } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const onTablet = useWideNative();
   const toast = useUndoToast();
 
   const sheetOffset = useSharedValue(screenHeight);
@@ -76,6 +79,7 @@ export default function ImportHelpScreen() {
           // Desktop/web: centered dialog like every other sheet (polish
           // pass 2026-08-02).
           Platform.OS === 'web' && styles.sheetWeb,
+          onTablet && tabletSheet,
           {
             backgroundColor: colors.surfaceElevated,
             borderTopLeftRadius: radius.card,

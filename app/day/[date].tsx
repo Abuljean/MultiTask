@@ -19,6 +19,7 @@ import { useTaskActions } from '@/hooks/use-task-actions';
 import { usePageSlide } from '@/hooks/use-page-slide';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
+import { useWideLayout } from '@/hooks/use-wide-layout';
 import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { useEvents } from '@/lib/events/use-events';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
@@ -79,12 +80,12 @@ export default function DayScreen() {
   // Drag-down-to-dismiss from the header (restores a standard escape gesture
   // after the zoom transition replaced the native back-swipe — HIG audit).
   const dragY = useSharedValue(0);
-  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const { height: windowHeight } = useWindowDimensions();
 
-  // Desktop/web: content in a centered column; the exposed gutters CLICK to
-  // dismiss (developer request 2026-07-11) and descriptions show inline —
-  // the space exists on a laptop, use it.
-  const isWide = Platform.OS === 'web' && windowWidth >= 900;
+  // Desktop/web and iPad: two-pane timeline in a centered column; the exposed
+  // gutters TAP to dismiss (developer request 2026-07-11) and descriptions
+  // show inline — the space exists on a laptop or a tablet, so use it.
+  const isWide = useWideLayout();
 
   const zoomStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,

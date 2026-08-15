@@ -18,6 +18,8 @@ import { importButtonLabel, importedMessage } from '@/lib/events/import-labels';
 import { eventToNewTask } from '@/lib/events/to-task';
 import { useDeleteAllEvents, useEvents, useImportEvents } from '@/lib/events/use-events';
 import { useImportTasks } from '@/lib/tasks/use-tasks';
+import { useWideNative } from '@/hooks/use-wide-layout';
+import { tabletSheet } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
 // Swatches for the whole-import default (rows with their own color column
@@ -37,6 +39,7 @@ export default function ImportEventsScreen() {
   const { colors, space, radius, type } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const onTablet = useWideNative();
   const toast = useUndoToast();
 
   const { data: existingEvents } = useEvents();
@@ -223,6 +226,7 @@ export default function ImportEventsScreen() {
         style={[
           sheetStyle,
           isWeb && styles.sheetWeb,
+          onTablet && tabletSheet,
           // Desktop/web: a centered dialog like quick-add, not a full-bleed
           // bottom sheet (audit 2026-07-16 — the sheet spanned the whole
           // 1440px viewport).

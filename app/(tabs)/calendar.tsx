@@ -8,7 +8,6 @@ import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,6 +27,7 @@ import { usePageSlide } from '@/hooks/use-page-slide';
 import { emitTourEvent } from '@/lib/tour/events';
 import { useToday } from '@/hooks/use-today';
 import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
+import { useWideLayout } from '@/hooks/use-wide-layout';
 import { eventsByDay, useEvents } from '@/lib/events/use-events';
 import { buildMonthMatrix, localDateKey, tasksByDay, weekDates } from '@/lib/tasks/calendar';
 import { deriveStatus } from '@/lib/tasks/status';
@@ -83,9 +83,10 @@ export default function CalendarScreen() {
   const { data: tasks } = useTasks();
   const urgencyThresholdHours = useUrgencyThreshold();
 
-  // Desktop/web: taller day cells showing NAMED task/event bars instead of
-  // dots — the extra space is there, use it (developer request 2026-07-11).
-  const isWide = Platform.OS === 'web' && windowWidth >= 900;
+  // Desktop/web and iPad: taller day cells showing NAMED task/event bars
+  // instead of dots — the extra space is there, use it (developer request
+  // 2026-07-11; extended to tablets 2026-08-15).
+  const isWide = useWideLayout();
   const { dayCellHeight, monthItemHeight, yearBlockHeight, yearItemHeight } = getGeometry(isWide);
   const MAX_BARS = 3;
 

@@ -13,6 +13,8 @@ import { eventTimeLabel } from '@/components/event-card';
 import { useUndoToast } from '@/components/undo-toast';
 import { confirmDialog } from '@/lib/confirm';
 import { useDeleteEvent, useEvents } from '@/lib/events/use-events';
+import { useWideNative } from '@/hooks/use-wide-layout';
+import { tabletSheet } from '@/lib/theme/layout';
 import { readableTextColor } from '@/lib/theme/pill-colors';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -25,6 +27,7 @@ export default function EventDetailScreen() {
   const { colors, space, radius, type, monoFont, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const onTablet = useWideNative();
   const { data: events } = useEvents();
   const deleteEvent = useDeleteEvent();
   const toast = useUndoToast();
@@ -126,6 +129,7 @@ export default function EventDetailScreen() {
           // Desktop/web: centered dialog like every other sheet (polish
           // pass 2026-08-02 — this one was still a full-width bottom sheet).
           Platform.OS === 'web' && styles.sheetWeb,
+          onTablet && tabletSheet,
           {
             backgroundColor: colors.surfaceElevated,
             borderTopWidth: 1.5,

@@ -1,21 +1,27 @@
-The MIT License (MIT)
+Copyright (c) 2026 Abuljean. All rights reserved.
 
-Copyright (c) 2015-present 650 Industries, Inc. (aka Expo)
+(Replace "Abuljean" above with your full legal name — a copyright notice
+should name the actual person who holds the copyright.)
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This repository contains the source code of Multitask Manager. It is
+published so it can be read. It is NOT open source, and no licence to use
+it is granted.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+You may not copy, modify, translate, merge, publish, distribute,
+sublicense, sell, or create derivative works from this code or from the
+designs, artwork, text, and other assets in this repository, in whole or in
+part, without prior written permission from the copyright holder.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Viewing the code, and the forking that GitHub performs as part of its own
+service, are permitted by GitHub's Terms of Service. Nothing else is.
+
+The app itself is free to download and use from the App Store under the
+terms at https://multitask-web.onrender.com/terms. That freedom applies to
+the app, not to this source code.
+
+Third-party dependencies listed in package.json remain under their own
+licences, held by their own authors. This notice covers only the original
+work in this repository.
+
+No warranty of any kind is given. See the terms of service for the full
+disclaimer.

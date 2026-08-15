@@ -10,7 +10,9 @@ export type TourEvent =
   | 'form-date-set'
   | 'form-priority-set'
   | 'form-category-set'
-  | 'form-subject-set';
+  | 'form-subject-set'
+  | 'recurring-added'
+  | 'recurring-checked';
 
 type Listener = (event: TourEvent) => void;
 

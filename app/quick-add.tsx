@@ -2,6 +2,7 @@
 // is today 11:59 PM; optimistic create with a temp id so the card appears
 // in the list (visible behind the closing sheet) the moment Add is tapped.
 import { TaskFormSheet } from '@/components/task-form-sheet';
+import { TourOverlay } from '@/components/tour/tour-overlay';
 import { useUndoToast } from '@/components/undo-toast';
 import { animateListChanges } from '@/lib/animate-layout';
 import { markEnter } from '@/lib/enter-marks';
@@ -14,6 +15,7 @@ export default function QuickAddScreen() {
   const toast = useUndoToast();
 
   return (
+    <>
     <TaskFormSheet
       submitLabel="Add task"
       autoFocusTitle
@@ -36,5 +38,9 @@ export default function QuickAddScreen() {
         );
       }}
     />
+    {/* Native modal screens paint above the root overlay — the tour's
+        form steps render from INSIDE this route. */}
+    <TourOverlay host="quick-add" />
+    </>
   );
 }

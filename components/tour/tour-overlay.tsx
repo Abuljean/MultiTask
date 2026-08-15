@@ -1,18 +1,16 @@
-// The tour overlay (v3 — developer script 2026-08-11). Mounted at the ROOT
-// layout so it paints above every route, including the quick-add sheet the
-// tour walks into.
+// The tour overlay (v4 — developer feedback 2026-08-11). THREE instances
+// render the same shared tour state (index lives in TourContext): the root
+// layout ('tabs'), the quick-add sheet ('quick-add'), and the day page
+// ('day') — native modal screens paint above any root-level sibling, so the
+// card was invisible/underneath while the sheet was open (the phone bug).
+// Exactly one instance is live at a time: the one whose host matches the
+// current pathname AND the current step's host.
 //
-// Step kinds:
-//   action + dim  — everything is dimmed AND BLOCKED except a hole over the
-//                   ringed target (root is box-none, the four dim panes eat
-//                   touches, the hole has no view so touches fall through).
-//   action        — ring + card only, whole app usable (in-form guidance).
-//   spotlight     — dim + hole + Next.
-//
-// THE FREEZE FIX (developer report: "after I create a task it freezes"):
-// navigation is pathname-aware. The overlay only switches tabs when the app
-// is actually ON a tab — never while a modal route (quick-add) is open and
-// mid-close, which previously double-popped the stack and wedged the UI.
+// Action steps GATE the app: with `dim`, everything except the ringed
+// target is darkened and blocked (root is box-none, panes eat touches, the
+// hole passes them) — the user completes the instructed action or presses
+// "Skip step". The ring RE-MEASURES continuously (350ms) so scrolling can't
+// strand it (the "outline gets messed up when I scroll" bug).
 import { usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,7 +18,7 @@ import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, type 
 
 import { useTour } from '@/components/tour/tour-context';
 import { onTourEvent } from '@/lib/tour/events';
-import { TOUR_STEPS } from '@/lib/tour/steps';
+import { TOUR_STEPS, type TourHost } from '@/lib/tour/steps';
 import { useTheme } from '@/lib/theme/use-theme';
 
 const PAD = 8;
@@ -29,20 +27,27 @@ const DIM_ACTION = 'rgba(0,0,0,0.55)';
 const SEEN_KEY = 'tour.seen';
 const TAB_PATHS = ['/', '/daily', '/calendar', '/settings'];
 
-export function TourOverlay() {
-  const { active, stop, measureAnchor, anchorVersion } = useTour();
+function hostForPath(pathname: string): TourHost {
+  if (pathname === '/quick-add') return 'quick-add';
+  if (pathname.startsWith('/day')) return 'day';
+  return 'tabs';
+}
+
+export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
+  const { active, stop, index, setIndex, measureAnchor, anchorVersion } = useTour();
   const { colors, space, radius, type, monoFont } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { height: windowHeight } = useWindowDimensions();
-  const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<LayoutRectangle | null>(null);
   const step = TOUR_STEPS[index];
 
+  // This instance is live only when BOTH the route and the step belong to
+  // it — otherwise its effects stay quiet so nothing runs twice.
+  const live = active && !!step && hostForPath(pathname) === host && step.host === host;
+
   const finish = useCallback(() => {
     stop();
-    setIndex(0);
-    setRect(null);
     void AsyncStorage.setItem(SEEN_KEY, 'true');
   }, [stop]);
 
@@ -56,76 +61,100 @@ export function TourOverlay() {
       setRect(null);
       setIndex(nextIndex);
     },
-    [finish]
+    [finish, setIndex]
   );
 
+  // Tab placement — only the tabs instance navigates, and only FROM a tab
+  // (never while a modal is open/closing — the v3 freeze fix).
   useEffect(() => {
-    if (active) {
-      setIndex(0);
-      setRect(null);
-    }
-  }, [active]);
-
-  // Tab placement — only ever navigate FROM a tab (see freeze fix above).
-  useEffect(() => {
-    if (!active || !step?.tab) return;
+    if (!active || host !== 'tabs' || !step?.tab) return;
+    if (step.host !== 'tabs') return;
     if (pathname !== step.tab && TAB_PATHS.includes(pathname)) {
       router.navigate(step.tab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, index, pathname]);
 
-  // Route-based advancing ("tap + " -> quick-add opened).
+  // Route-based advancing. The instance that OWNS the new route fires (the
+  // route being left may unmount its own instance mid-pop, so gating on the
+  // step's host would drop the advance).
   useEffect(() => {
-    if (!active || !step?.advanceOnPath) return;
-    if (pathname === step.advanceOnPath) goTo(index + 1);
-  }, [active, step, pathname, index, goTo]);
+    if (!active || !step || hostForPath(pathname) !== host) return;
+    if (step.advanceOnPath && pathname === step.advanceOnPath) goTo(index + 1);
+    else if (step.advanceOnPathPrefix && pathname.startsWith(step.advanceOnPathPrefix)) goTo(index + 1);
+  }, [active, step, host, pathname, index, goTo]);
 
-  // Measure the step's anchor with retries (sheets/tabs mount over frames).
+  // Recovery: the user bailed out of the surface a step lives on (closed
+  // the sheet mid-form, left the day page early). The tabs instance walks
+  // the tour to a step that makes sense from a tab — back to "tap +" for
+  // form steps, forward to the next tab step after the day pair. Debounced
+  // so route transitions can't trigger it.
   useEffect(() => {
-    if (!active || !step) return;
-    if (!step.anchor) {
+    if (!active || !step || host !== 'tabs') return;
+    if (step.host === 'tabs' || hostForPath(pathname) !== 'tabs') return;
+    const timer = setTimeout(() => {
+      if (step.host === 'quick-add') {
+        goTo(TOUR_STEPS.findIndex((s) => s.id === 'add'));
+      } else {
+        let next = index + 1;
+        while (next < TOUR_STEPS.length && TOUR_STEPS[next].host !== 'tabs') next += 1;
+        goTo(next);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [active, step, host, pathname, index, goTo]);
+
+  // Continuous anchor measurement while live — follows scrolling.
+  useEffect(() => {
+    if (!live || !step.anchor) {
       setRect(null);
       return;
     }
     let cancelled = false;
-    let tries = 0;
-    const attempt = async () => {
-      // Let sheet/tab entrance animations settle first — measuring
-      // mid-slide ringed the wrong region (v3 verification catch).
+    const loop = async () => {
+      // Let entrance animations settle before the first ring.
       await new Promise((r) => setTimeout(r, 350));
-      while (!cancelled && tries < 20) {
-        tries += 1;
+      while (!cancelled) {
         const measured = await measureAnchor(step.anchor as string);
         if (cancelled) return;
-        if (measured) {
-          setRect(measured);
-          return;
-        }
-        await new Promise((r) => setTimeout(r, 250));
+        setRect((prev) => {
+          if (!measured) return prev;
+          if (
+            prev &&
+            Math.abs(prev.x - measured.x) < 1 &&
+            Math.abs(prev.y - measured.y) < 1 &&
+            Math.abs(prev.width - measured.width) < 1 &&
+            Math.abs(prev.height - measured.height) < 1
+          ) {
+            return prev;
+          }
+          return measured;
+        });
+        await new Promise((r) => setTimeout(r, 350));
       }
     };
-    void attempt();
+    void loop();
     return () => {
       cancelled = true;
     };
-    // anchorVersion: retry when a late mount registers the anchor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, index, anchorVersion]);
+  }, [live, index, anchorVersion]);
 
-  // Event-based advancing (the user actually did the thing).
+  // Event-based advancing — only the live instance listens.
   useEffect(() => {
-    if (!active || !step?.advanceOn) return;
+    if (!live || !step.advanceOn) return;
     return onTourEvent((event) => {
       if (event === step.advanceOn) goTo(index + 1);
     });
-  }, [active, step, index, goTo]);
+  }, [live, step, index, goTo]);
 
-  if (!active || !step) return null;
+  if (!live) return null;
 
   const isAction = step.kind === 'action';
   const counter = `${index + 1} / ${TOUR_STEPS.length}`;
   const body = Platform.OS === 'web' ? (step.webBody ?? step.body) : step.body;
+  const primaryLabel =
+    index === TOUR_STEPS.length - 1 ? 'Done' : isAction ? 'Skip step' : 'Next';
 
   const card = (
     <View
@@ -144,7 +173,7 @@ export function TourOverlay() {
       <Text style={[type.body, { color: colors.textSecondary }]}>{body}</Text>
       <View style={styles.buttonRow}>
         <Pressable onPress={finish} hitSlop={8} accessibilityRole="button">
-          <Text style={[type.body, { color: colors.textTertiary }]}>Skip</Text>
+          <Text style={[type.body, { color: colors.textTertiary }]}>End tour</Text>
         </Pressable>
         <View style={styles.rightButtons}>
           {index > 0 && (
@@ -162,7 +191,7 @@ export function TourOverlay() {
             accessibilityRole="button"
             style={[styles.navButton, { backgroundColor: colors.accent, borderRadius: radius.button }]}>
             <Text style={[type.body, { color: colors.textOnAccent, fontWeight: '600' }]}>
-              {index === TOUR_STEPS.length - 1 ? 'Done' : 'Next'}
+              {primaryLabel}
             </Text>
           </Pressable>
         </View>
@@ -187,8 +216,6 @@ export function TourOverlay() {
     />
   ) : null;
 
-  // Four panes around the hole. The root stays box-none, so the hole (no
-  // view there) passes touches to the app — the target stays interactive.
   const panes = (dimColor: string) =>
     rect ? (
       <>
@@ -199,11 +226,7 @@ export function TourOverlay() {
       </>
     ) : null;
 
-  // Card sits OPPOSITE the ringed element so it never covers what it's
-  // pointing at (step.placement is the fallback when nothing is ringed).
-  const placeTop = rect
-    ? rect.y + rect.height / 2 > windowHeight / 2
-    : step.placement === 'top';
+  const placeTop = rect ? rect.y + rect.height / 2 > windowHeight / 2 : step.placement === 'top';
   const holder = (
     <View
       pointerEvents="box-none"
@@ -222,7 +245,6 @@ export function TourOverlay() {
     );
   }
 
-  // Spotlight: dimmed and blocked everywhere except the hole.
   return (
     <View style={[StyleSheet.absoluteFill, styles.overlayRoot]} pointerEvents="box-none">
       {rect ? (
@@ -239,7 +261,6 @@ export function TourOverlay() {
 }
 
 const styles = StyleSheet.create({
-  // Above every route (the tour walks into the quick-add sheet).
   overlayRoot: { zIndex: 10000, elevation: 10000 },
   dim: { position: 'absolute' },
   ring: {

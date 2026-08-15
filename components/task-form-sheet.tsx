@@ -317,7 +317,13 @@ export function TaskFormSheet({ submitLabel, autoFocusTitle = false, initial, on
     navigation.dispatch({ ...StackActions.pop(1), source: routeKey });
   }
 
+  const closeStarted = useRef(false);
   function close() {
+    // One pop only — submit + backdrop (or a Siri-opened sheet) could both
+    // schedule the close timer, and the second keyed pop finds nothing to
+    // pop ("The action 'POP' ... was not handled", developer report).
+    if (closeStarted.current) return;
+    closeStarted.current = true;
     Keyboard.dismiss();
     setDismissing(true);
     // The page under a modal is INERT until the route pops — on EVERY

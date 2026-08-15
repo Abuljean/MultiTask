@@ -13,6 +13,11 @@ type TourContextValue = {
   active: boolean;
   start: () => void;
   stop: () => void;
+  /** Step index lives HERE, not in the overlay — several overlay instances
+   *  render the tour (tabs / quick-add sheet / day page, because native
+   *  modal screens paint above any root sibling) and must share it. */
+  index: number;
+  setIndex: (index: number) => void;
   registerAnchor: (id: string, measure: MeasureFn) => () => void;
   measureAnchor: (id: string) => Promise<Rect | null>;
   /** Bumps when anchors mount — lets the overlay retry a missing anchor. */
@@ -33,6 +38,7 @@ function measureView(ref: React.RefObject<View | null>): Promise<Rect | null> {
 
 export function TourProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState(false);
+  const [index, setIndex] = useState(0);
   const anchors = useRef(new Map<string, MeasureFn>());
   const [anchorVersion, setAnchorVersion] = useState(0);
 
@@ -47,12 +53,18 @@ export function TourProvider({ children }: { children: ReactNode }) {
     const measure = anchors.current.get(id);
     return measure ? measure() : null;
   }, []);
-  const start = useCallback(() => setActive(true), []);
-  const stop = useCallback(() => setActive(false), []);
+  const start = useCallback(() => {
+    setIndex(0);
+    setActive(true);
+  }, []);
+  const stop = useCallback(() => {
+    setActive(false);
+    setIndex(0);
+  }, []);
 
   const value = useMemo(
-    () => ({ active, start, stop, registerAnchor, measureAnchor, anchorVersion }),
-    [active, start, stop, registerAnchor, measureAnchor, anchorVersion]
+    () => ({ active, start, stop, index, setIndex, registerAnchor, measureAnchor, anchorVersion }),
+    [active, start, stop, index, registerAnchor, measureAnchor, anchorVersion]
   );
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }

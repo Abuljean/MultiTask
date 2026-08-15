@@ -22,6 +22,7 @@ import { useUrgencyThreshold } from '@/hooks/use-urgency-threshold';
 import { clearEnterMark, getEnterFrom } from '@/lib/enter-marks';
 import { useEvents } from '@/lib/events/use-events';
 import { localDateKey, parseDateKey } from '@/lib/tasks/calendar';
+import { TourOverlay } from '@/components/tour/tour-overlay';
 import { useTasks } from '@/lib/tasks/use-tasks';
 import { CONTENT_MAX_WIDTH, pageContent } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
@@ -354,6 +355,9 @@ export default function DayScreen() {
           </Animated.View>
         </View>
       </GestureDetector>
+      {/* Native modal screens paint above the root overlay — the tour's
+          day-timeline steps render from INSIDE this route. */}
+      <TourOverlay host="day" />
     </Animated.View>
   );
 }

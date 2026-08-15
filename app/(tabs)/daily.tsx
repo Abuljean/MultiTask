@@ -229,7 +229,16 @@ export default function DailyScreen() {
           <Text style={[type.body, { color: colors.textPrimary }]}>Couldn’t load daily tasks.</Text>
         ) : (
           <View style={{ gap: space.s2 }}>
-            {pendingRecurring.map(renderRecurringRow)}
+            {pendingRecurring.map((task, i) =>
+              // The tour's check-it-off step rings the first open daily.
+              i === 0 ? (
+                <TourAnchor key={`anchor-${task.id}`} id="first-daily">
+                  {renderRecurringRow(task)}
+                </TourAnchor>
+              ) : (
+                renderRecurringRow(task)
+              )
+            )}
 
             {(recurring.data ?? []).length === 0 && (
               <Text style={[type.body, { color: colors.textSecondary }]}>No daily tasks yet.</Text>
@@ -247,6 +256,7 @@ export default function DailyScreen() {
         {/* Always-visible add affordance: a ghost pill row matching the
             recurring rows' shape, so it can't be missed but stays calm. */}
         {!recurring.isLoading && (
+          <TourAnchor id="daily-add">
           <View style={{ marginTop: space.s2 }}>
             {adding ? (
               <TextInput
@@ -286,6 +296,7 @@ export default function DailyScreen() {
               </Pressable>
             )}
           </View>
+          </TourAnchor>
         )}
 
         {/* ------------------------- Schedule -------------------------- */}

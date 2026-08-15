@@ -233,13 +233,17 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
     />
   ) : null;
 
-  const panes = (dimColor: string) =>
+  // Action-step panes are VISUAL ONLY (pointerEvents none): the target may
+  // sit below the fold, so the user must be able to scroll to it — the dim
+  // guides, the ring points, and only the right action advances (developer
+  // feedback 2026-08-14). Spotlight panes still block (Next-driven).
+  const panes = (dimColor: string, blocking: boolean) =>
     rect ? (
       <>
-        <View style={[styles.dim, { backgroundColor: dimColor, left: 0, right: 0, top: 0, height: Math.max(0, rect.y - PAD) }]} />
-        <View style={[styles.dim, { backgroundColor: dimColor, left: 0, right: 0, top: rect.y + rect.height + PAD, bottom: 0 }]} />
-        <View style={[styles.dim, { backgroundColor: dimColor, left: 0, width: Math.max(0, rect.x - PAD), top: rect.y - PAD, height: rect.height + PAD * 2 }]} />
-        <View style={[styles.dim, { backgroundColor: dimColor, left: rect.x + rect.width + PAD, right: 0, top: rect.y - PAD, height: rect.height + PAD * 2 }]} />
+        <View pointerEvents={blocking ? 'auto' : 'none'} style={[styles.dim, { backgroundColor: dimColor, left: 0, right: 0, top: 0, height: Math.max(0, rect.y - PAD) }]} />
+        <View pointerEvents={blocking ? 'auto' : 'none'} style={[styles.dim, { backgroundColor: dimColor, left: 0, right: 0, top: rect.y + rect.height + PAD, bottom: 0 }]} />
+        <View pointerEvents={blocking ? 'auto' : 'none'} style={[styles.dim, { backgroundColor: dimColor, left: 0, width: Math.max(0, rect.x - PAD), top: rect.y - PAD, height: rect.height + PAD * 2 }]} />
+        <View pointerEvents={blocking ? 'auto' : 'none'} style={[styles.dim, { backgroundColor: dimColor, left: rect.x + rect.width + PAD, right: 0, top: rect.y - PAD, height: rect.height + PAD * 2 }]} />
       </>
     ) : null;
 
@@ -257,7 +261,7 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
   if (isAction) {
     return (
       <View style={[StyleSheet.absoluteFill, styles.overlayRoot]} pointerEvents="box-none">
-        {step.dim ? panes(DIM_ACTION) : null}
+        {step.dim ? panes(DIM_ACTION, false) : null}
         {ring}
         {holder}
       </View>
@@ -268,7 +272,7 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
     <View style={[StyleSheet.absoluteFill, styles.overlayRoot]} pointerEvents="box-none">
       {rect ? (
         <>
-          {panes(DIM_SPOTLIGHT)}
+          {panes(DIM_SPOTLIGHT, true)}
           {ring}
         </>
       ) : (

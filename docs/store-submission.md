@@ -108,12 +108,13 @@ Answer **Yes** to "Do you or your third-party partners collect data from this ap
 | Data type | Collected | Linked to user | Purpose | Why |
 |---|---|---|---|---|
 | Contact Info → Email Address | Yes | Yes | App Functionality | The account identifier. |
+| Contact Info → Name | Yes | Yes | App Functionality | The optional display name set in Settings, stored in auth metadata. Optional still counts as collected. |
 | User Content → Photos or Videos | Yes | Yes | App Functionality | Optional profile picture only. |
 | User Content → Other User Content | Yes | Yes | App Functionality | Task and event titles, notes, categories. |
 | Identifiers → User ID | Yes | Yes | App Functionality | The Supabase auth user id that owns every row. |
 | Diagnostics → Crash Data | Yes | **No** | App Functionality | Sentry. `delete event.user`, `sendDefaultPii: false`, console breadcrumbs stripped, so crashes arrive with no identity and no task text attached. |
 
-**Not collected** — say No to all of these: location, contacts, health, financial info, browsing history, search history, purchases, usage data, advertising data, sensitive info, and any other diagnostics beyond crash data.
+**Not collected** — say No to all of these: phone number, physical address, location, contacts, health, financial info, browsing history, search history, purchases, usage data, advertising data, sensitive info, device ID, and any other diagnostics beyond crash data. Do **not** tick Performance Data next to Crash Data either — `tracesSampleRate` is 0, so no traces are ever sent.
 
 **Tracking:** No. The app has no advertising identifier, no ad networks, no analytics SDK, and shares nothing with data brokers. Answer "No" to the tracking question, which produces the "Data Not Used to Track You" section.
 

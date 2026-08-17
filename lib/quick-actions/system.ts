@@ -16,16 +16,20 @@ export async function initQuickActions(navigate: (href: string) => void): Promis
   try {
     const QuickActions = await import('expo-quick-actions');
 
-    // Runtime registration covers Android (static config is iOS-only in the
-    // plugin); on iOS it harmlessly overwrites the identical static action.
-    await QuickActions.setItems([
-      {
-        id: 'quick-add',
-        title: 'Quick add',
-        icon: Platform.OS === 'ios' ? 'symbol:plus' : undefined,
-        params: { href: '/quick-add' },
-      },
-    ]);
+    // Runtime registration is ANDROID ONLY. iOS gets the action from the
+    // static Info.plist config (app.json iosActions) — and on iOS static and
+    // dynamic shortcuts are two separate lists shown TOGETHER, so setItems
+    // here produced a duplicate "Quick add" (TestFlight, 2026-08-17). The
+    // press listener below handles static items fine.
+    if (Platform.OS === 'android') {
+      await QuickActions.setItems([
+        {
+          id: 'quick-add',
+          title: 'Quick add',
+          params: { href: '/quick-add' },
+        },
+      ]);
+    }
 
     const initialHref = QuickActions.initial?.params?.href;
     if (typeof initialHref === 'string') {

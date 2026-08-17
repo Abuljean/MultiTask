@@ -1,6 +1,6 @@
 // Sign-in — designed pass (was the bare placeholder). Layout/visuals live in
 // components/auth-form.tsx; validation + error copy in lib/auth/form.ts.
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -12,6 +12,9 @@ import { useTheme } from '@/lib/theme/use-theme';
 
 export default function SignInScreen() {
   const { colors } = useTheme();
+  // Set when the /confirmed page deep-links back into the app
+  // (multitask://sign-in?confirmed=1) - greet instead of a cold form.
+  const { confirmed } = useLocalSearchParams<{ confirmed?: string }>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -48,6 +51,9 @@ export default function SignInScreen() {
 
   return (
     <AuthScreen title="Sign in">
+      {confirmed === '1' && !serverError ? (
+        <AuthMessage kind="notice" text="Email confirmed. Sign in below." />
+      ) : null}
       <AuthField
         label="Email"
         value={email}

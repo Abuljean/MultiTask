@@ -34,6 +34,7 @@ import {
   getNotificationPermissionStatus,
 } from '@/lib/notifications';
 import { supabase } from '@/lib/supabase';
+import { captureError } from '@/lib/telemetry/system';
 import { pageContent } from '@/lib/theme/layout';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -186,9 +187,27 @@ export default function SettingsScreen() {
       destructive: true,
     });
     if (!second) return;
+    // Remove the avatar files FIRST, as the signed-in user - the RPC can't
+    // reliably touch storage (schema owned by supabase_storage_admin), and
+    // Supabase refuses to delete an auth user who still owns storage
+    // objects. Best-effort: an account with no avatar has nothing to do.
+    try {
+      const uid = user?.id;
+      if (uid) {
+        const { data: files } = await supabase.storage.from('avatars').list(uid);
+        if (files && files.length > 0) {
+          await supabase.storage.from('avatars').remove(files.map((f) => `${uid}/${f.name}`));
+        }
+      }
+    } catch (e) {
+      captureError(e, { where: 'deleteAccount.avatarCleanup' });
+    }
     const { error } = await supabase.rpc('delete_own_account');
     if (error) {
-      toast.show({ message: 'Couldn’t delete the account. Check your connection and try again.' });
+      // Show the REAL reason - the generic connection copy hid a server-side
+      // permission failure for days (TestFlight 2026-08-17).
+      captureError(error, { where: 'deleteAccount.rpc' });
+      toast.show({ message: `Couldn’t delete the account: ${error.message}` });
       return;
     }
     // The auth user is gone server-side. Local sign-out wipes the device

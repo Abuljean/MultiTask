@@ -7,6 +7,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AuthButton, AuthField, AuthMessage, AuthScreen } from '@/components/auth-form';
 import { friendlyAuthError, validateEmail, validatePassword } from '@/lib/auth/form';
 import { supabase } from '@/lib/supabase';
+import { markTourPending } from '@/lib/tour/pending';
 import { space, type } from '@/lib/theme/tokens';
 import { useTheme } from '@/lib/theme/use-theme';
 
@@ -34,12 +35,22 @@ export default function SignUpScreen() {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          // Confirm links land on the themed /confirmed page, which hands
+          // phone users back into the app via multitask:// (developer
+          // request 2026-08-17). Must be in Supabase's allowed Redirect
+          // URLs - see the header of app/confirmed.tsx.
+          emailRedirectTo: 'https://multitask-web.onrender.com/confirmed',
+        },
       });
       if (error) {
         setServerError(friendlyAuthError(error));
         setSubmitting(false);
         return;
       }
+      // Brand-new account: run the tour when they first land in the app
+      // (survives the confirm-email round trip; consumed by the tabs layout).
+      await markTourPending();
       if (!data.session) {
         // Email confirmation is on (a security invariant — see supabase/10):
         // no session until the emailed link is clicked.

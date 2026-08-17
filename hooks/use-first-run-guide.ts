@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 
 import { useTour } from '@/components/tour/tour-context';
 import { useAuth } from '@/hooks/use-auth';
+import { consumeTourPending } from '@/lib/tour/pending';
 
 const SEEN_KEY = 'tour.seen';
 // The v1 static-guide flag — anyone who already saw that shouldn't get
@@ -23,11 +24,17 @@ export function useFirstRunGuide() {
     if (!session) return;
     let cancelled = false;
     (async () => {
-      const [seen, legacySeen] = await Promise.all([
+      // A JUST-CREATED account tours even on a device that has seen it -
+      // the developer's delete-test signup arrived to no tour because their
+      // own first session had already burned the per-device flag
+      // (TestFlight 2026-08-17). Sign-up plants the pending flag.
+      const [pending, seen, legacySeen] = await Promise.all([
+        consumeTourPending(),
         AsyncStorage.getItem(SEEN_KEY),
         AsyncStorage.getItem(LEGACY_SEEN_KEY),
       ]);
-      if (seen || legacySeen || cancelled) return;
+      if (cancelled) return;
+      if (!pending && (seen || legacySeen)) return;
       await AsyncStorage.setItem(SEEN_KEY, '1');
       // Let the first frame of the task list land before dimming it.
       setTimeout(() => {

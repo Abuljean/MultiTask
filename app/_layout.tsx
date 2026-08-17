@@ -92,6 +92,7 @@ function RootNavigator() {
       {/* PUBLIC (outside both guards): policy pages must be readable
           without an account — App Store reviewers and prospective users
           land here from the store listing. */}
+      <Stack.Screen name="confirmed" options={{ headerShown: false }} />
       <Stack.Screen name="support" options={{ headerShown: false }} />
       <Stack.Screen name="privacy" options={{ headerShown: false }} />
       <Stack.Screen name="terms" options={{ headerShown: false }} />

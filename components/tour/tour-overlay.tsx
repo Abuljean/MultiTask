@@ -174,6 +174,10 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
   const primaryLabel =
     index === TOUR_STEPS.length - 1 ? 'Done' : isAction ? 'Skip step' : 'Next';
 
+  // Phones get a tighter card - the s4 version ate too much of the screen
+  // (developer report 2026-08-17). The counter shares the title row instead
+  // of its own line; web keeps the roomier layout.
+  const compact = Platform.OS !== 'web';
   const card = (
     <View
       style={[
@@ -182,12 +186,14 @@ export function TourOverlay({ host = 'tabs' }: { host?: TourHost }) {
           backgroundColor: colors.surfaceElevated,
           borderColor: colors.borderSubtle,
           borderRadius: radius.card,
-          padding: space.s4,
-          gap: space.s2,
+          padding: compact ? space.s3 : space.s4,
+          gap: compact ? space.s1 : space.s2,
         },
       ]}>
-      <Text style={{ fontFamily: monoFont, fontSize: 11, color: colors.textTertiary }}>{counter}</Text>
-      <Text style={[type.h2, { color: colors.textPrimary }]}>{step.title}</Text>
+      <View style={styles.titleRow}>
+        <Text style={[type.h2, { color: colors.textPrimary, flexShrink: 1 }]}>{step.title}</Text>
+        <Text style={{ fontFamily: monoFont, fontSize: 11, color: colors.textTertiary }}>{counter}</Text>
+      </View>
       <Text style={[type.body, { color: colors.textSecondary }]}>{body}</Text>
       <View style={styles.buttonRow}>
         <Pressable onPress={finish} hitSlop={8} accessibilityRole="button">
@@ -313,6 +319,12 @@ const styles = StyleSheet.create({
   },
   holderTop: { top: 64 },
   holderBottom: { bottom: 96 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   buttonRow: {
     flexDirection: 'row',
     alignItems: 'center',
